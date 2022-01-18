@@ -7,8 +7,6 @@ use crate::AllocGen;
 use crate::{Entity, Fixed, Id, IdRange, Killed, ValidId};
 use fxhash::FxHashSet;
 
-// TODO RawLinks<Parent, Child, IdRange<Child>>
-
 #[derive(Debug)]
 pub struct RawLinks<Parent: Entity, Child: Entity, Children> {
     #[cfg(debug_assertions)]
