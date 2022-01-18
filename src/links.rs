@@ -4,7 +4,7 @@ use crate::component::RawComponent;
 use crate::id_map::RawIdMap;
 #[cfg(debug_assertions)]
 use crate::AllocGen;
-use crate::{Entity, Fixed, Id, IdRange, Killed, ValidId};
+use crate::{Entity, Fixed, Id, IdRange, Killed, Valid, ValidId, Validator};
 use fxhash::FxHashSet;
 
 #[derive(Debug)]
@@ -237,6 +237,40 @@ impl<Parent: Entity<IdType = Fixed>, Child: Entity<IdType = Fixed>>
 
     pub fn get_parent(&self, child: Id<Child>) -> Option<&Id<Parent>> {
         self.parent.get(child)?.as_ref()
+    }
+}
+
+impl<Parent: Entity, Child: Entity, Children> RawLinks<Parent, Child, Children> {
+    pub fn validate_both<'v, P: Validator<'v, Parent>, C: Validator<'v, Child>>(
+        &self,
+        p: P,
+        c: C,
+    ) -> &Valid<'v, Self> {
+        #[cfg(debug_assertions)]
+        {
+            assert!(&self.parent_gen == p.as_ref());
+            assert!(&self.child_gen == c.as_ref());
+        }
+
+        Valid::new_ref(self)
+    }
+
+    pub fn validate_parent<'v, P: Validator<'v, Parent>>(&self, p: P) -> &Valid<'v, Self> {
+        #[cfg(debug_assertions)]
+        {
+            assert!(&self.parent_gen == p.as_ref());
+        }
+
+        Valid::new_ref(self)
+    }
+
+    pub fn validate_child<'v, C: Validator<'v, Child>>(&self, c: C) -> &Valid<'v, Self> {
+        #[cfg(debug_assertions)]
+        {
+            assert!(&self.child_gen == c.as_ref());
+        }
+
+        Valid::new_ref(self)
     }
 }
 
@@ -772,10 +806,7 @@ macro_rules! validate {
             &self,
             v: V,
         ) -> &$crate::Valid<'v, Self> {
-            #[cfg(debug_assertions)]
-            assert!(&self.links.child_gen == v.as_ref());
-
-            $crate::Valid::new_ref(self)
+            self.links.validate_child(v)
         }
     };
     ($parent:ident: Dynamic, $child:ident: Fixed) => {
@@ -784,10 +815,7 @@ macro_rules! validate {
             &self,
             v: V,
         ) -> &$crate::Valid<'v, Self> {
-            #[cfg(debug_assertions)]
-            assert!(&self.links.parent_gen == v.as_ref());
-
-            $crate::Valid::new_ref(self)
+            self.links.validate_parent(v)
         }
     };
     ($parent:ident: Dynamic, $child:ident: Dynamic) => {
@@ -797,13 +825,7 @@ macro_rules! validate {
             p: P,
             c: C,
         ) -> &$crate::Valid<'v, Self> {
-            #[cfg(debug_assertions)]
-            {
-                assert!(&self.links.parent_gen == p.as_ref());
-                assert!(&self.links.child_gen == c.as_ref());
-            }
-
-            $crate::Valid::new_ref(self)
+            self.links.validate_both(p, c)
         }
     };
 }
