@@ -7,7 +7,7 @@ pub struct RawComponent<E, T> {
     marker: PhantomData<*const E>,
 }
 
-impl<E: Entity, T> Default for RawComponent<E, T> {
+impl<E, T> Default for RawComponent<E, T> {
     fn default() -> Self {
         Self {
             values: Vec::default(),
@@ -16,7 +16,7 @@ impl<E: Entity, T> Default for RawComponent<E, T> {
     }
 }
 
-impl<E: Entity, T> From<Vec<T>> for RawComponent<E, T> {
+impl<E, T> From<Vec<T>> for RawComponent<E, T> {
     fn from(values: Vec<T>) -> Self {
         Self {
             values,
@@ -115,6 +115,14 @@ impl<'a, E: Entity, T> iter_context::ContextualIterator for &'a mut RawComponent
 #[derive(Debug)]
 pub struct Component<E, T> {
     values: RawComponent<E, T>,
+}
+
+impl<E: Entity, T> Default for Component<E, T> {
+    fn default() -> Self {
+        Self {
+            values: RawComponent::default(),
+        }
+    }
 }
 
 impl<E: Entity, T> From<Vec<T>> for Component<E, T> {
