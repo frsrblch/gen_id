@@ -532,7 +532,7 @@ macro_rules! define_links_inner {
             links: $crate::links::RawLinks<
                 $parent,
                 $child,
-                $crate::component::RawComponent<$parent, fxhash::FxHashSet<$crate::Id<$child>>>,
+                $crate::component::RawComponent<$parent, $crate::FxHashSet<$crate::Id<$child>>>,
             >,
         }
 
@@ -551,7 +551,7 @@ macro_rules! define_links_inner {
             pub fn get_children<P: $crate::ValidId<Entity = $parent>>(
                 &self,
                 parent: P,
-            ) -> std::option::Option<&fxhash::FxHashSet<$crate::Id<$child>>> {
+            ) -> std::option::Option<&$crate::FxHashSet<$crate::Id<$child>>> {
                 self.links.get_children(parent.id())
             }
 
@@ -569,7 +569,7 @@ macro_rules! define_links_inner {
             links: $crate::links::RawLinks<
                 $parent,
                 $child,
-                $crate::id_map::RawIdMap<$parent, fxhash::FxHashSet<$crate::Id<$child>>>,
+                $crate::id_map::RawIdMap<$parent, $crate::FxHashSet<$crate::Id<$child>>>,
             >,
         }
 
@@ -588,7 +588,7 @@ macro_rules! define_links_inner {
             pub fn get_children<P: $crate::ValidId<Entity = $parent>>(
                 &self,
                 parent: P,
-            ) -> std::option::Option<&fxhash::FxHashSet<$crate::Id<$child>>> {
+            ) -> std::option::Option<&$crate::FxHashSet<$crate::Id<$child>>> {
                 self.links.get_children(parent.id())
             }
 
@@ -606,14 +606,14 @@ macro_rules! define_links_inner {
 macro_rules! index_parent {
     ($ty:ident, $parent:ident: Fixed, $child:ident) => {
         impl std::ops::Index<$crate::Id<$parent>> for $ty {
-            type Output = fxhash::FxHashSet<$crate::Id<$child>>;
+            type Output = $crate::FxHashSet<$crate::Id<$child>>;
             fn index(&self, index: $crate::Id<$parent>) -> &Self::Output {
                 self.links.children.index(index)
             }
         }
 
         impl std::ops::Index<&$crate::Id<$parent>> for $ty {
-            type Output = fxhash::FxHashSet<$crate::Id<$child>>;
+            type Output = $crate::FxHashSet<$crate::Id<$child>>;
             fn index(&self, index: &$crate::Id<$parent>) -> &Self::Output {
                 self.links.children.index(*index)
             }
@@ -621,28 +621,28 @@ macro_rules! index_parent {
     };
     ($ty:ident, $parent:ident: Dynamic, $child:ident) => {
         impl std::ops::Index<$crate::Valid<'_, $crate::Id<$parent>>> for $ty {
-            type Output = fxhash::FxHashSet<$crate::Id<$child>>;
+            type Output = $crate::FxHashSet<$crate::Id<$child>>;
             fn index(&self, index: $crate::Valid<$crate::Id<$parent>>) -> &Self::Output {
                 self.links.children.index(index.id())
             }
         }
 
         impl std::ops::Index<$crate::Valid<'_, &$crate::Id<$parent>>> for $ty {
-            type Output = fxhash::FxHashSet<$crate::Id<$child>>;
+            type Output = $crate::FxHashSet<$crate::Id<$child>>;
             fn index(&self, index: $crate::Valid<&$crate::Id<$parent>>) -> &Self::Output {
                 self.links.children.index(index.id())
             }
         }
 
         impl std::ops::Index<&$crate::Valid<'_, $crate::Id<$parent>>> for $ty {
-            type Output = fxhash::FxHashSet<$crate::Id<$child>>;
+            type Output = $crate::FxHashSet<$crate::Id<$child>>;
             fn index(&self, index: &$crate::Valid<$crate::Id<$parent>>) -> &Self::Output {
                 self.links.children.index(index.id())
             }
         }
 
         impl std::ops::Index<&$crate::Valid<'_, &$crate::Id<$parent>>> for $ty {
-            type Output = fxhash::FxHashSet<$crate::Id<$child>>;
+            type Output = $crate::FxHashSet<$crate::Id<$child>>;
             fn index(&self, index: &$crate::Valid<&$crate::Id<$parent>>) -> &Self::Output {
                 self.links.children.index(index.id())
             }

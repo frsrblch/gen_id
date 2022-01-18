@@ -5,6 +5,8 @@ use std::marker::PhantomData;
 use std::num::NonZeroU16;
 use std::ops::Index;
 
+pub use fxhash::{FxHashMap, FxHashSet};
+
 pub mod component;
 pub mod id_map;
 pub mod links;
