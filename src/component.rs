@@ -80,6 +80,11 @@ impl<E: Entity, T> RawComponent<E, T> {
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
+
+    pub fn component(&self) -> &Component<E, T> {
+        let ptr = self as *const RawComponent<E, T> as *const Component<E, T>;
+        unsafe { &*ptr }
+    }
 }
 
 impl<E: Entity, T> std::ops::Index<Id<E>> for RawComponent<E, T> {
@@ -121,6 +126,7 @@ impl<'a, E: Entity, T> iter_context::ContextualIterator for &'a mut RawComponent
     type Context = E;
 }
 
+#[repr(transparent)]
 #[derive(Debug)]
 pub struct Component<E, T> {
     values: RawComponent<E, T>,

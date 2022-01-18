@@ -6,12 +6,17 @@ use force_derive::*;
 #[derive(Debug, ForceDefault)]
 pub struct RawIdMap<E: Entity, T> {
     map: fxhash::FxHashMap<Id<E>, T>,
+
+    #[cfg(debug_assertions)]
+    gen: AllocGen<E>,
 }
 
 impl<E: Entity, T: Clone> Clone for RawIdMap<E, T> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
+            #[cfg(debug_assertions)]
+            gen: self.gen.clone(),
         }
     }
 }
@@ -29,6 +34,25 @@ impl<E: Entity, T> RawIdMap<E, T> {
         self.map.remove(id)
     }
 
+    pub fn kill(&mut self, id: Id<E>) -> Option<T> {
+        #[cfg(debug_assertions)]
+        self.gen.increment(id);
+
+        self.remove(&id)
+    }
+
+    pub fn kill_many(&mut self, killed: &Killed<E>) {
+        #[cfg(debug_assertions)]
+        assert!(self.gen == killed.before);
+
+        for id in killed.ids() {
+            self.kill(*id.value);
+        }
+
+        #[cfg(debug_assertions)]
+        assert!(self.gen == killed.after);
+    }
+
     pub fn get(&self, id: Id<E>) -> Option<&T> {
         self.map.get(&id)
     }
@@ -43,6 +67,11 @@ impl<E: Entity, T> RawIdMap<E, T> {
 
     pub fn is_empty(&self) -> bool {
         self.map.is_empty()
+    }
+
+    pub fn id_map(&self) -> &IdMap<E, T> {
+        let ptr = self as *const RawIdMap<E, T> as *const IdMap<E, T>;
+        unsafe { &*ptr }
     }
 }
 
@@ -62,21 +91,16 @@ impl<E: Entity, T> std::ops::Index<&Id<E>> for RawIdMap<E, T> {
     }
 }
 
+#[repr(transparent)]
 #[derive(Debug, ForceDefault)]
 pub struct IdMap<E: Entity, T> {
     map: RawIdMap<E, T>,
-
-    #[cfg(debug_assertions)]
-    gen: AllocGen<E>,
 }
 
 impl<E: Entity, T: Clone> Clone for IdMap<E, T> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
-
-            #[cfg(debug_assertions)]
-            gen: self.gen.clone(),
         }
     }
 }
@@ -98,22 +122,11 @@ impl<E: Entity, T> IdMap<E, T> {
     }
 
     pub fn kill<V: ValidId<Entity = E>>(&mut self, id: V) -> Option<T> {
-        #[cfg(debug_assertions)]
-        self.gen.increment(id.id());
-
-        self.remove(id)
+        self.map.kill(id.id())
     }
 
     pub fn kill_many(&mut self, killed: &Killed<E>) {
-        #[cfg(debug_assertions)]
-        assert!(self.gen == killed.before);
-
-        for id in killed.ids() {
-            self.kill(id);
-        }
-
-        #[cfg(debug_assertions)]
-        assert!(self.gen == killed.after);
+        self.map.kill_many(killed);
     }
 
     pub fn get<V: ValidId<Entity = E>>(&self, id: V) -> Option<&T> {
@@ -142,7 +155,7 @@ impl<E: Entity, T> IdMap<E, T> {
 
     pub fn validate<'v, V: Validator<'v, E>>(&self, v: V) -> &Valid<'v, Self> {
         #[cfg(debug_assertions)]
-        assert!(&self.gen == v.as_ref());
+        assert!(&self.map.gen == v.as_ref());
 
         let _ = v;
         Valid::new_ref(self)
@@ -150,7 +163,7 @@ impl<E: Entity, T> IdMap<E, T> {
 
     pub fn validate_mut<'v, V: Validator<'v, E>>(&mut self, v: V) -> &mut Valid<'v, Self> {
         #[cfg(debug_assertions)]
-        assert!(&self.gen == v.as_ref());
+        assert!(&self.map.gen == v.as_ref());
 
         let _ = v;
         Valid::new_mut(self)

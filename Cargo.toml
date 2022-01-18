@@ -10,3 +10,6 @@ nonmax = "0.5.0"
 fxhash = "^0.2"
 force_derive = { git = "https://github.com/frsrblch/force_derive" }
 iter_context = { git = "https://github.com/frsrblch/iter_context" }
+
+[[example]]
+name = "macro_tests"
