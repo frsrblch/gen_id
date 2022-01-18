@@ -154,14 +154,14 @@ impl<Parent: Entity, Child: Entity>
 
     pub fn kill_parents(&mut self, killed: &Killed<Parent>) {
         #[cfg(debug_assertions)]
-        assert!(killed.before == self.parent_gen);
+        assert!(killed.before() == self.parent_gen);
 
         for p in killed.ids() {
             self.kill_parent(p.id());
         }
 
         #[cfg(debug_assertions)]
-        assert!(killed.after == self.parent_gen);
+        assert!(killed.after() == self.parent_gen);
     }
 
     pub fn kill_child(&mut self, child: Id<Child>) {
@@ -173,14 +173,14 @@ impl<Parent: Entity, Child: Entity>
 
     pub fn kill_children(&mut self, killed: &Killed<Child>) {
         #[cfg(debug_assertions)]
-        assert!(killed.before == self.child_gen);
+        assert!(killed.before() == self.child_gen);
 
         for c in killed.ids() {
             self.kill_child(c.id());
         }
 
         #[cfg(debug_assertions)]
-        assert!(killed.after == self.child_gen);
+        assert!(killed.after() == self.child_gen);
     }
 
     pub fn unlink_parent(&mut self, parent: Id<Parent>) {
@@ -730,14 +730,14 @@ macro_rules! kill_parent {
 
         pub fn kill_parents(&mut self, killed: &$crate::Killed<$parent>) {
             #[cfg(debug_assertions)]
-            assert_eq!(&killed.before, &self.links.parent_gen);
+            assert_eq!(&killed.before(), &self.links.parent_gen);
 
             for p in killed.ids() {
                 self.kill_parent(p);
             }
 
             #[cfg(debug_assertions)]
-            assert_eq!(&killed.after, &self.links.parent_gen);
+            assert_eq!(&killed.after(), &self.links.parent_gen);
         }
     };
 }
@@ -751,14 +751,14 @@ macro_rules! kill_child {
 
         pub fn kill_children(&mut self, killed: &$crate::Killed<$child>) {
             #[cfg(debug_assertions)]
-            assert_eq!(&killed.before, &self.links.child_gen);
+            assert_eq!(&killed.before(), &self.links.child_gen);
 
             for c in killed.ids() {
                 self.kill_child(c);
             }
 
             #[cfg(debug_assertions)]
-            assert_eq!(&killed.after, &self.links.child_gen);
+            assert_eq!(&killed.after(), &self.links.child_gen);
         }
     };
 }

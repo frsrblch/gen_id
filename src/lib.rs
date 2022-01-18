@@ -381,6 +381,14 @@ impl<'v, E: Entity> Killed<'v, E> {
     pub fn ids(&self) -> &Valid<'v, Vec<Id<E>>> {
         &self.ids
     }
+
+    pub fn before(&self) -> &AllocGen<E> {
+        &self.before
+    }
+
+    pub fn after(&self) -> &AllocGen<E> {
+        &self.after
+    }
 }
 
 #[derive(Debug, ForceDefault)]
