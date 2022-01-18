@@ -333,21 +333,21 @@ macro_rules! sparse_range_link {
 #[macro_export]
 macro_rules! dense_required_link {
     ($ty:ident, $parent:ident: Fixed, $child:ident: Fixed) => {
-        $crate::links::define_links_inner!($ty, $parent: Component, $child);
+        $crate::define_links_inner!($ty, $parent: Component, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Fixed, Required);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Fixed, Required);
     };
     ($ty:ident, $parent:ident: Fixed, $child:ident: Dynamic) => {
-        $crate::links::define_links_inner!($ty, $parent: Component, $child);
+        $crate::define_links_inner!($ty, $parent: Component, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Dynamic, Required);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Dynamic, Required);
 
         impl $ty {
-            $crate::links::kill_child!($child);
+            $crate::kill_child!($child);
 
-            $crate::links::validate!($parent: Fixed, $child: Dynamic);
+            $crate::validate!($parent: Fixed, $child: Dynamic);
         }
     };
 }
@@ -355,57 +355,57 @@ macro_rules! dense_required_link {
 #[macro_export]
 macro_rules! dense_optional_link {
     ($ty:ident, $parent:ident: Fixed, $child:ident: Fixed) => {
-        $crate::links::define_links_inner!($ty, $parent: Component, $child);
+        $crate::define_links_inner!($ty, $parent: Component, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Fixed, Optional);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Fixed, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
         }
     };
     ($ty:ident, $parent:ident: Fixed, $child:ident: Dynamic) => {
-        $crate::links::define_links_inner!($ty, $parent: Component, $child);
+        $crate::define_links_inner!($ty, $parent: Component, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Dynamic, Optional);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
 
-            $crate::links::kill_child!($child);
+            $crate::kill_child!($child);
 
-            $crate::links::validate!($parent: Fixed, $child: Dynamic);
+            $crate::validate!($parent: Fixed, $child: Dynamic);
         }
     };
     ($ty:ident, $parent:ident: Dynamic, $child:ident: Fixed) => {
-        $crate::links::define_links_inner!($ty, $parent: Component, $child);
+        $crate::define_links_inner!($ty, $parent: Component, $child);
 
-        $crate::links::index_parent!($ty, $parent: Dynamic, $child);
-        $crate::links::index_child!($ty, $parent, $child: Fixed, Optional);
+        $crate::index_parent!($ty, $parent: Dynamic, $child);
+        $crate::index_child!($ty, $parent, $child: Fixed, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
 
-            $crate::links::kill_parent!($parent);
+            $crate::kill_parent!($parent);
 
-            $crate::links::validate!($parent: Dynamic, $child: Fixed);
+            $crate::validate!($parent: Dynamic, $child: Fixed);
         }
     };
     ($ty:ident, $parent:ident: Dynamic, $child:ident: Dynamic) => {
-        $crate::links::define_links_inner!($ty, $parent: Component, $child);
+        $crate::define_links_inner!($ty, $parent: Component, $child);
 
-        $crate::links::index_parent!($ty, $parent: Dynamic, $child);
-        $crate::links::index_child!($ty, $parent, $child: Dynamic, Optional);
+        $crate::index_parent!($ty, $parent: Dynamic, $child);
+        $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
 
-            $crate::links::kill_parent!($parent);
+            $crate::kill_parent!($parent);
 
-            $crate::links::kill_child!($child);
+            $crate::kill_child!($child);
 
-            $crate::links::validate!($parent: Dynamic, $child: Dynamic);
+            $crate::validate!($parent: Dynamic, $child: Dynamic);
         }
     };
 }
@@ -413,21 +413,21 @@ macro_rules! dense_optional_link {
 #[macro_export]
 macro_rules! sparse_required_link {
     ($ty:ident, $parent:ident: Fixed, $child:ident: Fixed) => {
-        $crate::links::define_links_inner!($ty, $parent: IdMap, $child);
+        $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Fixed, Required);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Fixed, Required);
     };
     ($ty:ident, $parent:ident: Fixed, $child:ident: Dynamic) => {
-        $crate::links::define_links_inner!($ty, $parent: IdMap, $child);
+        $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Dynamic, Required);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Dynamic, Required);
 
         impl $ty {
-            $crate::links::kill_child!($child);
+            $crate::kill_child!($child);
 
-            $crate::links::validate!($parent: Fixed, $child: Dynamic);
+            $crate::validate!($parent: Fixed, $child: Dynamic);
         }
     };
 }
@@ -435,57 +435,57 @@ macro_rules! sparse_required_link {
 #[macro_export]
 macro_rules! sparse_optional_link {
     ($ty:ident, $parent:ident: Fixed, $child:ident: Fixed) => {
-        $crate::links::define_links_inner!($ty, $parent: IdMap, $child);
+        $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Fixed, Optional);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Fixed, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
         }
     };
     ($ty:ident, $parent:ident: Fixed, $child:ident: Dynamic) => {
-        $crate::links::define_links_inner!($ty, $parent: IdMap, $child);
+        $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
-        $crate::links::index_parent!($ty, $parent: Fixed, $child);
-        $crate::links::index_child!($ty, $parent, $child: Dynamic, Optional);
+        $crate::index_parent!($ty, $parent: Fixed, $child);
+        $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
 
-            $crate::links::kill_child!($child);
+            $crate::kill_child!($child);
 
-            $crate::links::validate!($parent: Fixed, $child: Dynamic);
+            $crate::validate!($parent: Fixed, $child: Dynamic);
         }
     };
     ($ty:ident, $parent:ident: Dynamic, $child:ident: Fixed) => {
-        $crate::links::define_links_inner!($ty, $parent: IdMap, $child);
+        $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
-        $crate::links::index_parent!($ty, $parent: Dynamic, $child);
-        $crate::links::index_child!($ty, $parent, $child: Fixed, Optional);
+        $crate::index_parent!($ty, $parent: Dynamic, $child);
+        $crate::index_child!($ty, $parent, $child: Fixed, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
 
-            $crate::links::kill_parent!($parent);
+            $crate::kill_parent!($parent);
 
-            $crate::links::validate!($parent: Dynamic, $child: Fixed);
+            $crate::validate!($parent: Dynamic, $child: Fixed);
         }
     };
     ($ty:ident, $parent:ident: Dynamic, $child:ident: Dynamic) => {
-        $crate::links::define_links_inner!($ty, $parent: IdMap, $child);
+        $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
-        $crate::links::index_parent!($ty, $parent: Dynamic, $child);
-        $crate::links::index_child!($ty, $parent, $child: Dynamic, Optional);
+        $crate::index_parent!($ty, $parent: Dynamic, $child);
+        $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
 
         impl $ty {
-            $crate::links::unlink!($parent, $child);
+            $crate::unlink!($parent, $child);
 
-            $crate::links::kill_parent!($parent);
+            $crate::kill_parent!($parent);
 
-            $crate::links::kill_child!($child);
+            $crate::kill_child!($child);
 
-            $crate::links::validate!($parent: Dynamic, $child: Dynamic);
+            $crate::validate!($parent: Dynamic, $child: Dynamic);
         }
     };
 }
