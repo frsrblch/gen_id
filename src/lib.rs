@@ -453,6 +453,15 @@ impl<E: Entity<IdType = Fixed>> IdRange<E> {
         }
     }
 
+    pub fn position(&self, id: Id<E>) -> Option<usize> {
+        let index = id.index.get();
+        if index < self.end {
+            index.checked_sub(self.start).map(|i| i as usize)
+        } else {
+            None
+        }
+    }
+
     fn range(&self) -> std::ops::Range<u32> {
         self.start..self.end
     }
