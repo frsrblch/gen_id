@@ -519,7 +519,7 @@ impl<T: PartialEq> PartialEq<T> for Valid<'_, T> {
 }
 
 impl<'v, T> Valid<'v, T> {
-    pub(crate) fn new(value: T) -> Self {
+    pub fn new(value: T) -> Self {
         Self {
             value,
             marker: PhantomData,
