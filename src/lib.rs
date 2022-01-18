@@ -400,7 +400,13 @@ pub struct RangeAllocator<E> {
 }
 
 impl<E: Entity<IdType = Fixed>> RangeAllocator<E> {
-    pub fn create(&mut self, count: usize) -> IdRange<E> {
+    pub fn create(&mut self) -> Id<E> {
+        let id = Id::new(self.next, ());
+        self.next += 1;
+        id
+    }
+
+    pub fn create_range(&mut self, count: usize) -> IdRange<E> {
         let start = self.next;
         let end = start + count as u32;
         self.next = end;
