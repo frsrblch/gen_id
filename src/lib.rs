@@ -443,6 +443,7 @@ impl<E: Entity<IdType = Fixed>> IdRange<E> {
         }
     }
 
+    #[track_caller]
     pub fn append(&mut self, id: Id<E>) {
         if self.end == id.index.get() {
             self.end += 1;

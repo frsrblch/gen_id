@@ -35,6 +35,7 @@ impl<E, T> From<Vec<T>> for RawComponent<E, T> {
 }
 
 impl<E: Entity, T> RawComponent<E, T> {
+    #[track_caller]
     pub fn insert(&mut self, id: Id<E>, value: T) {
         self.insert_with(id, value, || panic!("invalid index"));
     }
