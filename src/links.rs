@@ -10,12 +10,12 @@ use fxhash::FxHashSet;
 #[derive(Debug)]
 pub struct RawLinks<Parent: Entity, Child: Entity, Children> {
     #[cfg(debug_assertions)]
-    parent_gen: AllocGen<Parent>,
+    pub parent_gen: AllocGen<Parent>,
     #[cfg(debug_assertions)]
-    child_gen: AllocGen<Child>,
+    pub child_gen: AllocGen<Child>,
 
-    parent: RawComponent<Child, Option<Id<Parent>>>,
-    children: Children,
+    pub parent: RawComponent<Child, Option<Id<Parent>>>,
+    pub children: Children,
 }
 
 impl<Parent: Entity, Child: Entity, Children: Clone> Clone for RawLinks<Parent, Child, Children> {
