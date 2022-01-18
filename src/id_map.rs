@@ -170,6 +170,14 @@ impl<E: Entity, T> IdMap<E, T> {
     }
 }
 
+impl<E: Entity, T, V: ValidId<Entity = E>> std::ops::Index<V> for IdMap<E, T> {
+    type Output = T;
+
+    fn index(&self, index: V) -> &Self::Output {
+        self.map.index(index.id())
+    }
+}
+
 impl<'v, E: Entity, T> Valid<'v, IdMap<E, T>> {
     pub fn iter(&self) -> impl Iterator<Item = (Valid<'v, &Id<E>>, &T)> + '_ {
         self.value.map.map.iter().map(|(k, v)| (Valid::new(k), v))
