@@ -526,35 +526,18 @@ impl<'v, T> Valid<'v, T> {
         }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn new_ref(value: &T) -> &Self {
+    pub fn new_ref(value: &T) -> &Self {
         let ptr = value as *const T as *const Self;
         unsafe { &*ptr }
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn new_mut(value: &mut T) -> &mut Self {
+    pub fn new_mut(value: &mut T) -> &mut Self {
         let ptr = value as *mut T as *mut Self;
         unsafe { &mut *ptr }
     }
 
     pub fn as_ref(&self) -> Valid<'v, &T> {
         Valid::new(&self.value)
-    }
-}
-
-#[cfg(feature = "assert_valid")]
-impl<'v, T> Valid<'v, T> {
-    pub fn assert(value: T) -> Self {
-        Self::new(value)
-    }
-
-    pub fn assert_ref(value: &T) -> &Self {
-        Self::new_ref(value)
-    }
-
-    pub fn assert_mut(value: &mut T) -> &mut Self {
-        Self::new_mut(value)
     }
 }
 

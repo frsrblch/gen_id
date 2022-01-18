@@ -806,7 +806,8 @@ macro_rules! validate {
             &self,
             v: V,
         ) -> &$crate::Valid<'v, Self> {
-            self.links.validate_child(v)
+            let _ = self.links.validate_child(v);
+            Valid::new_ref(self)
         }
     };
     ($parent:ident: Dynamic, $child:ident: Fixed) => {
@@ -815,7 +816,8 @@ macro_rules! validate {
             &self,
             v: V,
         ) -> &$crate::Valid<'v, Self> {
-            self.links.validate_parent(v)
+            let _ = self.links.validate_parent(v);
+            Valid::new_ref(self)
         }
     };
     ($parent:ident: Dynamic, $child:ident: Dynamic) => {
@@ -825,7 +827,8 @@ macro_rules! validate {
             p: P,
             c: C,
         ) -> &$crate::Valid<'v, Self> {
-            self.links.validate_both(p, c)
+            let _ = self.links.validate_both(p, c);
+            Valid::new_ref(self)
         }
     };
 }
