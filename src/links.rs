@@ -490,6 +490,7 @@ macro_rules! sparse_optional_link {
     };
 }
 
+#[macro_export]
 macro_rules! define_links_inner {
     ($ty:ident, $parent:ident: Component, $child:ident) => {
         #[derive(Debug, Default, Clone)]
@@ -567,6 +568,7 @@ macro_rules! define_links_inner {
     };
 }
 
+#[macro_export]
 macro_rules! index_parent {
     ($ty:ident, $parent:ident: Fixed, $child:ident) => {
         impl std::ops::Index<$crate::Id<$parent>> for $ty {
@@ -614,6 +616,7 @@ macro_rules! index_parent {
     };
 }
 
+#[macro_export]
 macro_rules! index_child {
     ($ty:ident, $parent:ident, $child:ident: Fixed, Optional) => {
         impl std::ops::Index<$crate::Id<$child>> for $ty {
@@ -705,6 +708,7 @@ macro_rules! index_child {
     };
 }
 
+#[macro_export]
 macro_rules! unlink {
     ($parent:ident, $child:ident) => {
         pub fn unlink_parent<P: $crate::ValidId<Entity = $parent>>(&mut self, p: P) {
@@ -717,6 +721,7 @@ macro_rules! unlink {
     };
 }
 
+#[macro_export]
 macro_rules! kill_parent {
     ($parent:ident) => {
         pub fn kill_parent<P: $crate::ValidId<Entity = $parent>>(&mut self, parent: P) {
@@ -737,6 +742,7 @@ macro_rules! kill_parent {
     };
 }
 
+#[macro_export]
 macro_rules! kill_child {
     ($child:ident) => {
         pub fn kill_child<C: $crate::ValidId<Entity = $child>>(&mut self, child: C) {
@@ -757,6 +763,7 @@ macro_rules! kill_child {
     };
 }
 
+#[macro_export]
 macro_rules! validate {
     ($parent:ident: Fixed, $child:ident: Fixed) => {};
     ($parent:ident: Fixed, $child:ident: Dynamic) => {
