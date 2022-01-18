@@ -18,6 +18,20 @@ pub struct RawLinks<Parent: Entity, Child: Entity, Children> {
     children: Children,
 }
 
+impl<Parent: Entity, Child: Entity, Children: Clone> Clone for RawLinks<Parent, Child, Children> {
+    fn clone(&self) -> Self {
+        Self {
+            #[cfg(debug_assertions)]
+            parent_gen: self.parent_gen.clone(),
+            #[cfg(debug_assertions)]
+            child_gen: self.child_gen.clone(),
+
+            parent: self.parent.clone(),
+            children: self.children.clone(),
+        }
+    }
+}
+
 impl<Parent: Entity, Child: Entity, Children: Default> Default
     for RawLinks<Parent, Child, Children>
 {
