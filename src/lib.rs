@@ -367,7 +367,7 @@ impl<E: Entity> AsRef<AllocGen<E>> for CreateOnly<'_, E> {
 }
 
 /// A list of valid, unique Ids that have been killed.
-/// Includes before and after allocator generations for validating and updating ArenaGen values  
+/// Includes before and after allocator generations for validating and updating AllocGen values  
 pub struct Killed<'v, E: Entity> {
     ids: Valid<'v, Vec<Id<E>>>,
 
