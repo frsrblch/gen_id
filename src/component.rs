@@ -16,6 +16,15 @@ impl<E, T> Default for RawComponent<E, T> {
     }
 }
 
+impl<E, T: Clone> Clone for RawComponent<E, T> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
 impl<E, T> From<Vec<T>> for RawComponent<E, T> {
     fn from(values: Vec<T>) -> Self {
         Self {
@@ -117,10 +126,18 @@ pub struct Component<E, T> {
     values: RawComponent<E, T>,
 }
 
-impl<E: Entity, T> Default for Component<E, T> {
+impl<E, T> Default for Component<E, T> {
     fn default() -> Self {
         Self {
             values: RawComponent::default(),
+        }
+    }
+}
+
+impl<E, T: Clone> Clone for Component<E, T> {
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
         }
     }
 }
