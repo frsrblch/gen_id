@@ -229,7 +229,7 @@ impl<Parent: Entity<IdType = Fixed>, Child: Entity<IdType = Fixed>>
 #[macro_export]
 macro_rules! dense_range_link {
     ($ty:ident, $parent:ident, $child:ident) => {
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, Clone)]
         pub struct $ty {
             links: $crate::links::RawLinks<
                 $parent,
@@ -274,7 +274,7 @@ macro_rules! dense_range_link {
 #[macro_export]
 macro_rules! sparse_range_link {
     ($ty:ident, $parent:ident, $child:ident) => {
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, Clone)]
         pub struct $ty {
             links: $crate::links::RawLinks<
                 $parent,
@@ -478,7 +478,7 @@ macro_rules! sparse_optional_link {
 
 macro_rules! define_links_inner {
     ($ty:ident, $parent:ident: Component, $child:ident) => {
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, Clone)]
         pub struct $ty {
             links: $crate::links::RawLinks<
                 $parent,
