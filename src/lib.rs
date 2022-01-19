@@ -5,7 +5,10 @@ use std::marker::PhantomData;
 use std::num::NonZeroU16;
 use std::ops::Index;
 
-pub use fxhash::{FxHashMap, FxHashSet};
+pub mod hash {
+    pub use fxhash::FxHashMap as HashMap;
+    pub use fxhash::FxHashSet as HashSet;
+}
 
 pub mod component;
 pub mod id_map;

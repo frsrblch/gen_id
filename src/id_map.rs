@@ -5,7 +5,7 @@ use force_derive::*;
 
 #[derive(Debug, ForceDefault)]
 pub struct RawIdMap<E: Entity, T> {
-    map: fxhash::FxHashMap<Id<E>, T>,
+    map: crate::hash::HashMap<Id<E>, T>,
 
     #[cfg(debug_assertions)]
     gen: AllocGen<E>,
@@ -15,6 +15,7 @@ impl<E: Entity, T: Clone> Clone for RawIdMap<E, T> {
     fn clone(&self) -> Self {
         Self {
             map: self.map.clone(),
+
             #[cfg(debug_assertions)]
             gen: self.gen.clone(),
         }
