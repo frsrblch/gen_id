@@ -4,6 +4,7 @@ use force_derive::*;
 use iter_context::ContextualIterator;
 use nonmax::NonMaxU32;
 use ref_cast::RefCast;
+use std::cmp::Ordering;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::num::NonZeroU16;
@@ -63,7 +64,7 @@ impl IdType for Dynamic {
     type AllocGen = u64;
 }
 
-pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash {
+pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord {
     const MIN: Self;
     const MAX: Self;
     fn first() -> Self;
@@ -85,7 +86,7 @@ impl GenTrait for () {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Gen(NonZeroU16);
 
 impl GenTrait for Gen {
@@ -151,6 +152,20 @@ impl<E: Entity> PartialEq for Id<E> {
 }
 
 impl<E: Entity> Eq for Id<E> {}
+
+impl<E: Entity> PartialOrd for Id<E> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
+    }
+}
+
+impl<E: Entity> Ord for Id<E> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.index
+            .cmp(&other.index)
+            .then_with(|| self.gen.cmp(&other.gen))
+    }
+}
 
 impl<E: Entity> std::hash::Hash for Id<E> {
     fn hash<H: Hasher>(&self, state: &mut H) {
