@@ -66,6 +66,7 @@ pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash {
     const MIN: Self;
     const MAX: Self;
     fn first() -> Self;
+    #[must_use]
     fn next(self) -> Self;
     fn u64(self) -> u64;
 }
@@ -94,7 +95,6 @@ impl GenTrait for Gen {
         Self(NonZeroU16::new(1).unwrap())
     }
 
-    #[must_use]
     fn next(self) -> Self {
         NonZeroU16::new(self.0.get() + 1)
             .map(Self)
