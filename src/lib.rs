@@ -1,5 +1,9 @@
+#![feature(type_alias_impl_trait, generic_associated_types)]
+
 use force_derive::*;
+use iter_context::ContextualIterator;
 use nonmax::NonMaxU32;
+use ref_cast::RefCast;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::num::NonZeroU16;
@@ -10,11 +14,32 @@ pub mod hash {
     pub use fxhash::FxHashSet as HashSet;
 }
 
+pub trait Insert<Key> {
+    type Value;
+    fn insert(&mut self, key: Key, value: Self::Value);
+}
+
+pub trait Remove<Key> {
+    type Value;
+    fn remove(&mut self, key: &Key) -> Option<Self::Value>;
+}
+
+pub trait Get<Key> {
+    type Value;
+    fn get(&self, key: Key) -> Option<&Self::Value>;
+}
+
+pub trait GetMut<Key> {
+    type Value;
+    fn get_mut(&mut self, key: Key) -> Option<&mut Self::Value>;
+}
+
 pub mod component;
 pub mod id_map;
+pub mod link;
 pub mod links;
 
-pub trait Entity: Sized {
+pub trait Entity {
     type IdType: IdType;
 }
 
@@ -23,9 +48,9 @@ pub trait IdType {
     type AllocGen: AllocGenTrait;
 }
 
-pub struct Fixed;
+pub struct Static;
 
-impl IdType for Fixed {
+impl IdType for Static {
     type Gen = ();
     type AllocGen = ();
 }
@@ -38,12 +63,17 @@ impl IdType for Dynamic {
 }
 
 pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash {
+    const MIN: Self;
+    const MAX: Self;
     fn first() -> Self;
     fn next(self) -> Self;
     fn u64(self) -> u64;
 }
 
 impl GenTrait for () {
+    const MIN: Self = ();
+    const MAX: Self = ();
+
     fn first() -> Self {}
 
     fn next(self) {}
@@ -57,6 +87,9 @@ impl GenTrait for () {
 pub struct Gen(NonZeroU16);
 
 impl GenTrait for Gen {
+    const MIN: Self = Self(unsafe { NonZeroU16::new_unchecked(1) });
+    const MAX: Self = Self(unsafe { NonZeroU16::new_unchecked(u16::MAX) });
+
     fn first() -> Self {
         Self(NonZeroU16::new(1).unwrap())
     }
@@ -126,11 +159,27 @@ impl<E: Entity> std::hash::Hash for Id<E> {
 }
 
 impl<E: Entity> Id<E> {
+    pub const MIN: Self = Id {
+        index: unsafe { NonMaxU32::new_unchecked(0) },
+        gen: <GenType<E> as GenTrait>::MIN,
+        marker: PhantomData,
+    };
+
+    pub const MAX: Self = Id {
+        index: unsafe { NonMaxU32::new_unchecked(u32::MAX - 1) },
+        gen: <GenType<E> as GenTrait>::MAX,
+        marker: PhantomData,
+    };
+
     fn new(index: u32, gen: GenType<E>) -> Self {
         debug_assert_ne!(index, u32::MAX);
 
         let index = unsafe { NonMaxU32::new_unchecked(index) };
 
+        Self::new_inner(index, gen)
+    }
+
+    fn new_inner(index: NonMaxU32, gen: GenType<E>) -> Self {
         Self {
             index,
             gen,
@@ -145,14 +194,14 @@ impl<E: Entity> Id<E> {
 
 #[cfg(test)]
 mod id_test {
-    use super::{Dynamic, Entity, Fixed, Id};
+    use super::{Dynamic, Entity, Id, Static};
 
     #[test]
     fn id_sizes() {
         #[derive(Debug)]
         struct F;
         impl Entity for F {
-            type IdType = Fixed;
+            type IdType = Static;
         }
 
         #[derive(Debug)]
@@ -402,7 +451,7 @@ pub struct RangeAllocator<E> {
     marker: PhantomData<*const E>,
 }
 
-impl<E: Entity<IdType = Fixed>> RangeAllocator<E> {
+impl<E: Entity<IdType = Static>> RangeAllocator<E> {
     pub fn create(&mut self) -> Id<E> {
         let id = Id::new(self.next, ());
         self.next += 1;
@@ -429,7 +478,15 @@ pub struct IdRange<E> {
     marker: PhantomData<*const E>,
 }
 
-impl<E: Entity<IdType = Fixed>> From<Id<E>> for IdRange<E> {
+impl<E: Entity<IdType = Static>> Insert<()> for IdRange<E> {
+    type Value = Id<E>;
+
+    fn insert(&mut self, _: (), value: Self::Value) {
+        self.append(value);
+    }
+}
+
+impl<E: Entity<IdType = Static>> From<Id<E>> for IdRange<E> {
     fn from(id: Id<E>) -> Self {
         let start = id.index.get();
         let end = start + 1;
@@ -437,7 +494,7 @@ impl<E: Entity<IdType = Fixed>> From<Id<E>> for IdRange<E> {
     }
 }
 
-impl<E: Entity<IdType = Fixed>> IdRange<E> {
+impl<E: Entity<IdType = Static>> IdRange<E> {
     pub(crate) fn new(start: u32, end: u32) -> Self {
         Self {
             start,
@@ -483,7 +540,7 @@ impl<E: Entity<IdType = Fixed>> IdRange<E> {
     }
 }
 
-impl<E: Entity<IdType = Fixed>> IntoIterator for IdRange<E> {
+impl<E: Entity<IdType = Static>> IntoIterator for IdRange<E> {
     type Item = Id<E>;
     type IntoIter = RangeIter<E>;
 
@@ -492,7 +549,7 @@ impl<E: Entity<IdType = Fixed>> IntoIterator for IdRange<E> {
     }
 }
 
-impl<E: Entity<IdType = Fixed>> IntoIterator for &IdRange<E> {
+impl<E: Entity<IdType = Static>> IntoIterator for &IdRange<E> {
     type Item = Id<E>;
     type IntoIter = RangeIter<E>;
 
@@ -516,7 +573,7 @@ impl<E> RangeIter<E> {
     }
 }
 
-impl<E: Entity<IdType = Fixed>> Iterator for RangeIter<E> {
+impl<E: Entity<IdType = Static>> Iterator for RangeIter<E> {
     type Item = Id<E>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -525,7 +582,7 @@ impl<E: Entity<IdType = Fixed>> Iterator for RangeIter<E> {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, RefCast)]
 pub struct Valid<'v, T> {
     pub value: T,
     marker: PhantomData<&'v ()>,
@@ -546,28 +603,22 @@ impl<'v, T> Valid<'v, T> {
     }
 
     pub fn new_ref(value: &T) -> &Self {
-        let ptr = value as *const T as *const Self;
-        unsafe { &*ptr }
+        Valid::ref_cast(value)
     }
 
     pub fn new_mut(value: &mut T) -> &mut Self {
-        let ptr = value as *mut T as *mut Self;
-        unsafe { &mut *ptr }
-    }
-
-    pub fn as_ref(&self) -> Valid<'v, &T> {
-        Valid::new(&self.value)
+        Valid::ref_cast_mut(value)
     }
 }
 
-impl<E: Entity<IdType = Fixed>> ValidId for Id<E> {
+impl<E: Entity<IdType = Static>> ValidId for Id<E> {
     type Entity = E;
     fn id(self) -> Id<E> {
         self
     }
 }
 
-impl<E: Entity<IdType = Fixed>> ValidId for &Id<E> {
+impl<E: Entity<IdType = Static>> ValidId for &Id<E> {
     type Entity = E;
     fn id(self) -> Id<E> {
         *self
@@ -640,6 +691,17 @@ where
     }
 }
 
+impl<'v, T: ContextualIterator> ContextualIterator for Valid<'v, T> {
+    type Context = T::Context;
+}
+
+impl<'a, 'v, T> ContextualIterator for &'a Valid<'v, T>
+where
+    &'a T: ContextualIterator,
+{
+    type Context = <&'a T as ContextualIterator>::Context;
+}
+
 pub struct ValidIter<'v, I> {
     iter: I,
     marker: PhantomData<&'v ()>,
@@ -650,6 +712,12 @@ impl<'v, I: Iterator> Iterator for ValidIter<'v, I> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.iter.next().map(Valid::new)
+    }
+}
+
+impl<'v, T: AsRef<U>, U> AsRef<Valid<'v, U>> for Valid<'v, T> {
+    fn as_ref(&self) -> &Valid<'v, U> {
+        Valid::new_ref(self.value.as_ref())
     }
 }
 
@@ -685,7 +753,7 @@ fn append_empty() {
     #[derive(Debug)]
     struct F;
     impl Entity for F {
-        type IdType = Fixed;
+        type IdType = Static;
     }
 
     let mut range = IdRange::default();
@@ -702,7 +770,7 @@ fn append_given_invalid_index() {
     #[derive(Debug)]
     struct F;
     impl Entity for F {
-        type IdType = Fixed;
+        type IdType = Static;
     }
 
     let mut range = IdRange::<F>::new(0, 1);
@@ -717,7 +785,7 @@ fn range_append() {
     #[derive(Debug)]
     struct F;
     impl Entity for F {
-        type IdType = Fixed;
+        type IdType = Static;
     }
 
     let mut range = IdRange::<F>::new(0, 1);

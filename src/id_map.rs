@@ -2,6 +2,7 @@
 use crate::AllocGen;
 use crate::{Entity, Id, Killed, Valid, ValidId, Validator};
 use force_derive::*;
+use ref_cast::RefCast;
 
 #[derive(Debug, ForceDefault)]
 pub struct RawIdMap<E: Entity, T> {
@@ -70,9 +71,16 @@ impl<E: Entity, T> RawIdMap<E, T> {
         self.map.is_empty()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = (&Id<E>, &T)> + '_ {
+        self.map.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Id<E>, &mut T)> + '_ {
+        self.map.iter_mut()
+    }
+
     pub fn id_map(&self) -> &IdMap<E, T> {
-        let ptr = self as *const RawIdMap<E, T> as *const IdMap<E, T>;
-        unsafe { &*ptr }
+        IdMap::ref_cast(self)
     }
 }
 
@@ -93,7 +101,7 @@ impl<E: Entity, T> std::ops::Index<&Id<E>> for RawIdMap<E, T> {
 }
 
 #[repr(transparent)]
-#[derive(Debug, ForceDefault)]
+#[derive(Debug, ForceDefault, RefCast)]
 pub struct IdMap<E: Entity, T> {
     map: RawIdMap<E, T>,
 }
@@ -147,11 +155,11 @@ impl<E: Entity, T> IdMap<E, T> {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&Id<E>, &T)> + '_ {
-        self.map.map.iter()
+        self.map.iter()
     }
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Id<E>, &mut T)> + '_ {
-        self.map.map.iter_mut()
+        self.map.iter_mut()
     }
 
     pub fn validate<'v, V: Validator<'v, E>>(&self, v: V) -> &Valid<'v, Self> {

@@ -1,26 +1,31 @@
 #![allow(unused_macros)]
 
-use crate::component::RawComponent;
+use crate::component::{Component, RawComponent};
 use crate::hash::HashSet;
 use crate::id_map::RawIdMap;
 #[cfg(debug_assertions)]
 use crate::AllocGen;
-use crate::{Entity, Fixed, Id, IdRange, Killed, Valid, ValidId, Validator};
-
-// TODO parents and children methods for Links and Valid<Links> as appropriate
+use crate::{
+    Dynamic, Entity, GetMut, Id, IdRange, Insert, Killed, RefCast, Static, Valid, ValidId,
+    Validator,
+};
+use iter_context::ContextualIterator;
+use std::marker::PhantomData;
 
 #[derive(Debug)]
-pub struct RawLinks<Parent: Entity, Child: Entity, Children> {
+pub struct RawLinks<Parent: Entity, Child: Entity, Children: ChildrenTrait> {
     #[cfg(debug_assertions)]
     pub parent_gen: AllocGen<Parent>,
     #[cfg(debug_assertions)]
     pub child_gen: AllocGen<Child>,
 
     pub parent: RawComponent<Child, Option<Id<Parent>>>,
-    pub children: Children,
+    pub children: Children::Type<Parent, Child>,
 }
 
-impl<Parent: Entity, Child: Entity, Children: Clone> Clone for RawLinks<Parent, Child, Children> {
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait> Clone
+    for RawLinks<Parent, Child, Children>
+{
     fn clone(&self) -> Self {
         Self {
             #[cfg(debug_assertions)]
@@ -34,7 +39,7 @@ impl<Parent: Entity, Child: Entity, Children: Clone> Clone for RawLinks<Parent, 
     }
 }
 
-impl<Parent: Entity, Child: Entity, Children: Default> Default
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait> Default
     for RawLinks<Parent, Child, Children>
 {
     fn default() -> Self {
@@ -50,12 +55,82 @@ impl<Parent: Entity, Child: Entity, Children: Default> Default
     }
 }
 
-impl<Parent: Entity, Child: Entity>
-    RawLinks<Parent, Child, RawComponent<Parent, HashSet<Id<Child>>>>
-{
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait> RawLinks<Parent, Child, Children> {
+    pub fn links<LinkType>(&self) -> &Links<Parent, Child, Children, LinkType> {
+        Links::ref_cast(self)
+    }
+}
+
+mod traits {
+    use super::*;
+    use crate::{GetMut, Insert, Remove};
+
+    impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, Inner>
+        RawLinks<Parent, Child, Children>
+    where
+        <Children as ChildrenTrait>::Type<Parent, Child>:
+            GetMut<Id<Parent>, Value = Inner> + Insert<Id<Parent>, Value = Inner>,
+        Inner: Insert<Id<Child>, Value = ()> + Default,
+    {
+        pub fn link_new(&mut self, parent: Id<Parent>, child: Id<Child>) {
+            assert!(matches!(self.parent.get(child), None | Some(None)));
+            match self.children.get_mut(parent) {
+                Some(children) => {
+                    children.insert(child, ());
+                }
+                None => {
+                    let mut set = Inner::default();
+                    set.insert(child, ());
+                    self.children.insert(parent, set);
+                }
+            }
+        }
+    }
+
+    impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, Inner>
+        RawLinks<Parent, Child, Children>
+    where
+        <Children as ChildrenTrait>::Type<Parent, Child>:
+            GetMut<Id<Parent>, Value = Inner> + Insert<Id<Parent>, Value = Inner>,
+        Inner: Insert<Id<Child>, Value = ()> + Default + Remove<Id<Child>>,
+    {
+        pub fn relink(&mut self, parent: Id<Parent>, child: Id<Child>) {
+            self.unlink1(child);
+            match self.children.get_mut(parent) {
+                Some(children) => {
+                    children.insert(child, ());
+                }
+                None => {
+                    let mut set = Inner::default();
+                    set.insert(child, ());
+                    self.children.insert(parent, set);
+                }
+            }
+        }
+    }
+
+    impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, Inner>
+        RawLinks<Parent, Child, Children>
+    where
+        <Children as ChildrenTrait>::Type<Parent, Child>: GetMut<Id<Parent>, Value = Inner>,
+        Inner: Remove<Id<Child>>,
+    {
+        pub fn unlink1(&mut self, child: Id<Child>) {
+            if let Some(parent) = self.parent.get_mut(child) {
+                if let Some(parent) = parent.take() {
+                    if let Some(children) = self.children.get_mut(parent) {
+                        children.remove(&child);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<Parent: Entity, Child: Entity> RawLinks<Parent, Child, CompSet> {
     pub fn link(&mut self, parent: Id<Parent>, child: Id<Child>) {
         self.unlink(child);
-        self.parent.insert(child, Some(parent));
+        self.parent.insert_with(child, Some(parent), || None);
         match self.children.get_mut(parent) {
             Some(children) => {
                 children.insert(child);
@@ -63,7 +138,7 @@ impl<Parent: Entity, Child: Entity>
             None => {
                 let mut set = HashSet::default();
                 set.insert(child);
-                self.children.insert(parent, set);
+                self.children.insert_with(parent, set, Default::default);
             }
         }
     }
@@ -113,7 +188,7 @@ impl<Parent: Entity, Child: Entity>
     }
 }
 
-impl<Parent: Entity, Child: Entity> RawLinks<Parent, Child, RawIdMap<Parent, HashSet<Id<Child>>>> {
+impl<Parent: Entity, Child: Entity> RawLinks<Parent, Child, MapSet> {
     pub fn link(&mut self, parent: Id<Parent>, child: Id<Child>) {
         self.unlink(child);
         self.parent.insert(child, Some(parent));
@@ -192,8 +267,8 @@ impl<Parent: Entity, Child: Entity> RawLinks<Parent, Child, RawIdMap<Parent, Has
     }
 }
 
-impl<Parent: Entity<IdType = Fixed>, Child: Entity<IdType = Fixed>>
-    RawLinks<Parent, Child, RawComponent<Parent, IdRange<Child>>>
+impl<Parent: Entity<IdType = Static>, Child: Entity<IdType = Static>>
+    RawLinks<Parent, Child, CompRange>
 {
     pub fn link(&mut self, parent: Id<Parent>, child: Id<Child>) {
         self.parent.insert(child, Some(parent));
@@ -216,11 +291,11 @@ impl<Parent: Entity<IdType = Fixed>, Child: Entity<IdType = Fixed>>
     }
 }
 
-impl<Parent: Entity<IdType = Fixed>, Child: Entity<IdType = Fixed>>
-    RawLinks<Parent, Child, RawIdMap<Parent, IdRange<Child>>>
+impl<Parent: Entity<IdType = Static>, Child: Entity<IdType = Static>>
+    RawLinks<Parent, Child, MapRange>
 {
     pub fn link(&mut self, parent: Id<Parent>, child: Id<Child>) {
-        self.parent.insert(child, Some(parent));
+        self.parent.insert_with(child, Some(parent), || None);
         match self.children.get_mut(parent) {
             Some(children) => {
                 children.append(child);
@@ -240,7 +315,7 @@ impl<Parent: Entity<IdType = Fixed>, Child: Entity<IdType = Fixed>>
     }
 }
 
-impl<Parent: Entity, Child: Entity, Children> RawLinks<Parent, Child, Children> {
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait> RawLinks<Parent, Child, Children> {
     pub fn validate_both<'v, P: Validator<'v, Parent>, C: Validator<'v, Child>>(
         &self,
         p: P,
@@ -274,29 +349,314 @@ impl<Parent: Entity, Child: Entity, Children> RawLinks<Parent, Child, Children> 
     }
 }
 
-pub trait Parents {
-    type Output;
-    fn parents(&self) -> &Self::Output;
+#[repr(transparent)]
+#[derive(ref_cast::RefCast)]
+pub struct Parents<Parent: Entity, Child: Entity> {
+    parents: RawComponent<Child, Option<Id<Parent>>>,
 }
 
-impl<'v, T: Parents> Parents for Valid<'v, T> {
-    type Output = Valid<'v, T::Output>;
+impl<Parent: Entity, Child: Entity> Parents<Parent, Child> {
+    pub fn new(parents: &RawComponent<Child, Option<Id<Parent>>>) -> &Self {
+        ref_cast::RefCast::ref_cast(parents)
+    }
+}
 
-    fn parents(&self) -> &Self::Output {
+impl<'a, Parent: Entity, Child: Entity> IntoIterator for &'a Parents<Parent, Child> {
+    type Item = &'a Id<Parent>;
+    type IntoIter = impl Iterator<Item = Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.parents.into_iter().map(|opt| opt.as_ref().unwrap())
+    }
+}
+
+impl<'a, Parent: Entity, Child: Entity> ContextualIterator for &'a Parents<Parent, Child> {
+    type Context = Child;
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct Required;
+
+#[derive(Debug, Default, Clone)]
+pub struct Optional;
+
+#[derive(Debug, Default, Clone)]
+pub struct CompSet;
+
+#[derive(Debug, Default, Clone)]
+pub struct CompRange;
+
+#[derive(Debug, Default, Clone)]
+pub struct MapSet;
+
+#[derive(Debug, Default, Clone)]
+pub struct MapRange;
+
+pub trait ChildrenTrait {
+    type Type<Parent: Entity, Child: Entity>: Default + Clone;
+}
+
+impl ChildrenTrait for CompSet {
+    type Type<Parent: Entity, Child: Entity> = RawComponent<Parent, HashSet<Id<Child>>>;
+}
+
+impl ChildrenTrait for CompRange {
+    type Type<Parent: Entity, Child: Entity> = RawComponent<Parent, IdRange<Child>>;
+}
+
+impl ChildrenTrait for MapSet {
+    type Type<Parent: Entity, Child: Entity> = RawIdMap<Parent, HashSet<Id<Child>>>;
+}
+
+impl ChildrenTrait for MapRange {
+    type Type<Parent: Entity, Child: Entity> = RawIdMap<Parent, IdRange<Child>>;
+}
+
+#[repr(transparent)]
+pub struct Links<Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType> {
+    links: RawLinks<Parent, Child, Children>,
+    marker: PhantomData<*const LinkType>,
+}
+
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType> RefCast
+    for Links<Parent, Child, Children, LinkType>
+{
+    type From = RawLinks<Parent, Child, Children>;
+
+    fn ref_cast(from: &Self::From) -> &Self {
+        let ptr = from as *const Self::From as *const Self;
+        unsafe { &*ptr }
+    }
+
+    fn ref_cast_mut(from: &mut Self::From) -> &mut Self {
+        let ptr = from as *mut Self::From as *mut Self;
+        unsafe { &mut *ptr }
+    }
+}
+
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, ParentType> Default
+    for Links<Parent, Child, Children, ParentType>
+{
+    fn default() -> Self {
+        Self {
+            links: Default::default(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, ParentType> Clone
+    for Links<Parent, Child, Children, ParentType>
+{
+    fn clone(&self) -> Self {
+        Self {
+            links: self.links.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
+mod traits1 {
+    use super::*;
+    use crate::Remove;
+
+    impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType, Inner>
+        Links<Parent, Child, Children, LinkType>
+    where
+        <Children as ChildrenTrait>::Type<Parent, Child>:
+            GetMut<Id<Parent>, Value = Inner> + Insert<Id<Parent>, Value = Inner>,
+        Inner: Default + Insert<Id<Child>, Value = ()>,
+    {
+        pub fn link_new<P: ValidId<Entity = Parent>, C: ValidId<Entity = Child>>(
+            &mut self,
+            parent: P,
+            child: C,
+        ) {
+            self.links.link_new(parent.id(), child.id());
+        }
+    }
+
+    impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType, Inner>
+        Links<Parent, Child, Children, LinkType>
+    where
+        <Children as ChildrenTrait>::Type<Parent, Child>:
+            GetMut<Id<Parent>, Value = Inner> + Insert<Id<Parent>, Value = Inner>,
+        Inner: Remove<Id<Child>>,
+    {
+        pub fn unlink1<C: ValidId<Entity = Child>>(&mut self, child: C) {
+            self.links.unlink1(child.id());
+        }
+    }
+
+    impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType, Inner>
+        Links<Parent, Child, Children, LinkType>
+    where
+        <Children as ChildrenTrait>::Type<Parent, Child>:
+            GetMut<Id<Parent>, Value = Inner> + Insert<Id<Parent>, Value = Inner>,
+        Inner: Remove<Id<Child>> + Default + Insert<Id<Child>, Value = ()>,
+    {
+        pub fn relink<P: ValidId<Entity = Parent>, C: ValidId<Entity = Child>>(
+            &mut self,
+            parent: P,
+            child: C,
+        ) {
+            self.links.relink(parent.id(), child.id());
+        }
+    }
+}
+
+impl<Parent: Entity, Child: Entity, LinkType> Links<Parent, Child, CompSet, LinkType> {
+    pub fn link<P: ValidId<Entity = Parent>, C: ValidId<Entity = Child>>(
+        &mut self,
+        parent: P,
+        child: C,
+    ) {
+        self.links.link(parent.id(), child.id());
+    }
+}
+
+impl<Parent: Entity, Child: Entity, LinkType> Links<Parent, Child, MapSet, LinkType> {
+    pub fn link<P: ValidId<Entity = Parent>, C: ValidId<Entity = Child>>(
+        &mut self,
+        parent: P,
+        child: C,
+    ) {
+        self.links.link(parent.id(), child.id());
+    }
+}
+
+impl<Parent: Entity, Child: Entity> Links<Parent, Child, CompSet, Optional> {
+    pub fn unlink<C: ValidId<Entity = Child>>(&mut self, child: C) {
+        self.links.unlink(child.id());
+    }
+}
+
+impl<Parent: Entity<IdType = Dynamic>, Child: Entity, LinkType>
+    Links<Parent, Child, CompSet, LinkType>
+{
+    pub fn kill_parent<P: ValidId<Entity = Parent>>(&mut self, parent: P) {
+        self.links.kill_parent(parent.id());
+    }
+}
+
+impl<Parent: Entity, Child: Entity<IdType = Dynamic>, LinkType>
+    Links<Parent, Child, CompSet, LinkType>
+{
+    pub fn kill_child<C: ValidId<Entity = Child>>(&mut self, child: C) {
+        self.links.kill_child(child.id());
+    }
+}
+
+impl<Parent: Entity, Child: Entity> Links<Parent, Child, MapSet, Optional> {
+    pub fn unlink<C: ValidId<Entity = Child>>(&mut self, child: C) {
+        self.links.unlink(child.id());
+    }
+}
+
+impl<Parent: Entity<IdType = Dynamic>, Child: Entity, LinkType>
+    Links<Parent, Child, MapSet, LinkType>
+{
+    pub fn kill_parent<P: ValidId<Entity = Parent>>(&mut self, parent: P) {
+        self.links.kill_parent(parent.id());
+    }
+}
+
+impl<Parent: Entity, Child: Entity<IdType = Dynamic>, LinkType>
+    Links<Parent, Child, MapSet, LinkType>
+{
+    pub fn kill_child<C: ValidId<Entity = Child>>(&mut self, child: C) {
+        self.links.kill_child(child.id());
+    }
+}
+
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait>
+    Links<Parent, Child, Children, Required>
+{
+    pub fn parents(&self) -> &Parents<Parent, Child> {
+        Parents::new(&self.links.parent)
+    }
+}
+
+impl<'v, Parent: Entity, Child: Entity, Children: ChildrenTrait>
+    Valid<'v, Links<Parent, Child, Children, Required>>
+{
+    pub fn parents(&self) -> &Valid<'v, Parents<Parent, Child>> {
         Valid::new_ref(self.value.parents())
     }
 }
 
-pub trait Children {
-    type Output;
-    fn children(&self) -> &Self::Output;
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait>
+    Links<Parent, Child, Children, Optional>
+{
+    pub fn parents(&self) -> &Component<Child, Option<Id<Parent>>> {
+        self.links.parent.component()
+    }
 }
 
-impl<'v, T: Children> Children for Valid<'v, T> {
-    type Output = Valid<'v, T::Output>;
+impl<'v, Parent: Entity, Child: Entity, Children: ChildrenTrait>
+    Valid<'v, Links<Parent, Child, Children, Optional>>
+{
+    pub fn parents(&self) -> &Valid<'v, Component<Child, Option<Id<Parent>>>> {
+        Valid::new_ref(self.value.parents())
+    }
+}
 
-    fn children(&self) -> &Self::Output {
+impl<Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType>
+    Links<Parent, Child, Children, LinkType>
+{
+    pub fn children(&self) -> &Children::Type<Parent, Child> {
+        &self.links.children
+    }
+}
+
+impl<'v, Parent: Entity, Child: Entity, Children: ChildrenTrait, LinkType>
+    Valid<'v, Links<Parent, Child, Children, LinkType>>
+{
+    pub fn children(&self) -> &Valid<Children::Type<Parent, Child>> {
         Valid::new_ref(self.value.children())
+    }
+}
+
+impl<
+        'v,
+        Parent: Entity<IdType = Dynamic>,
+        Child: Entity<IdType = Dynamic>,
+        Children: ChildrenTrait,
+        LinkType,
+    > Links<Parent, Child, Children, LinkType>
+{
+    pub fn validate<P: Validator<'v, Parent>, C: Validator<'v, Child>>(
+        &self,
+        p: P,
+        c: C,
+    ) -> &Valid<'v, Self> {
+        Valid::new_ref(self.links.validate_both(p, c).value.links())
+    }
+}
+
+impl<
+        'v,
+        Parent: Entity<IdType = Dynamic>,
+        Child: Entity<IdType = Static>,
+        Children: ChildrenTrait,
+        LinkType,
+    > Links<Parent, Child, Children, LinkType>
+{
+    pub fn validate_parent<P: Validator<'v, Parent>>(&self, p: P) -> &Valid<'v, Self> {
+        Valid::new_ref(self.links.validate_parent(p).value.links())
+    }
+}
+
+impl<
+        'v,
+        Parent: Entity<IdType = Static>,
+        Child: Entity<IdType = Dynamic>,
+        Children: ChildrenTrait,
+        LinkType,
+    > Links<Parent, Child, Children, LinkType>
+{
+    pub fn validate_child<C: Validator<'v, Child>>(&self, c: C) -> &Valid<'v, Self> {
+        Valid::new_ref(self.links.validate_child(c).value.links())
     }
 }
 
@@ -331,32 +691,14 @@ macro_rules! dense_range_link {
                 self.links.get_parent(child)
             }
 
-            pub fn parents(
-                &self,
-            ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
-            {
-                self.links.parent.component()
+            pub fn parents(&self) -> &$crate::links::Parents<$parent, $child> {
+                $crate::links::Parents::new(&self.links.parent)
             }
 
             pub fn children(
                 &self,
             ) -> &$crate::component::Component<$parent, $crate::IdRange<$child>> {
                 self.links.children.component()
-            }
-        }
-
-        impl $crate::links::Parents for $ty {
-            type Output =
-                $crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>;
-            fn parents(&self) -> &Self::Output {
-                $ty::parents(self)
-            }
-        }
-
-        impl $crate::links::Children for $ty {
-            type Output = $crate::component::Component<$parent, $crate::IdRange<$child>>;
-            fn children(&self) -> &Self::Output {
-                $ty::children(self)
             }
         }
 
@@ -407,30 +749,12 @@ macro_rules! sparse_range_link {
                 self.links.get_parent(child)
             }
 
-            pub fn parents(
-                &self,
-            ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
-            {
-                self.links.parent.component()
+            pub fn parents(&self) -> &$crate::links::Parents<$parent, $child> {
+                $crate::links::Parents::new(&self.links.parent)
             }
 
             pub fn children(&self) -> &$crate::id_map::IdMap<$parent, $crate::IdRange<$child>> {
                 self.links.children.id_map()
-            }
-        }
-
-        impl $crate::links::Parents for $ty {
-            type Output =
-                $crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>;
-            fn parents(&self) -> &Self::Output {
-                $ty::parents(self)
-            }
-        }
-
-        impl $crate::links::Children for $ty {
-            type Output = $crate::id_map::IdMap<$parent, $crate::IdRange<$child>>;
-            fn children(&self) -> &Self::Output {
-                $ty::children(self)
             }
         }
 
@@ -457,12 +781,14 @@ macro_rules! dense_required_link {
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Fixed, Required);
+        // $crate::links_trait!($ty, $parent, $child, Required);
     };
     ($ty:ident, $parent:ident: Fixed, $child:ident: Dynamic) => {
         $crate::define_links_inner!($ty, $parent: Component, $child);
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Dynamic, Required);
+        // $crate::links_trait!($ty, $parent, $child, Required);
 
         impl $ty {
             $crate::kill_child!($child);
@@ -489,6 +815,7 @@ macro_rules! dense_optional_link {
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -503,6 +830,7 @@ macro_rules! dense_optional_link {
 
         $crate::index_parent!($ty, $parent: Dynamic, $child);
         $crate::index_child!($ty, $parent, $child: Fixed, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -517,6 +845,7 @@ macro_rules! dense_optional_link {
 
         $crate::index_parent!($ty, $parent: Dynamic, $child);
         $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -537,12 +866,14 @@ macro_rules! sparse_required_link {
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Fixed, Required);
+        // $crate::links_trait!($ty, $parent, $child, Required);
     };
     ($ty:ident, $parent:ident: Fixed, $child:ident: Dynamic) => {
         $crate::define_links_inner!($ty, $parent: IdMap, $child);
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Dynamic, Required);
+        // $crate::links_trait!($ty, $parent, $child, Required);
 
         impl $ty {
             $crate::kill_child!($child);
@@ -559,6 +890,7 @@ macro_rules! sparse_optional_link {
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Fixed, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -569,6 +901,7 @@ macro_rules! sparse_optional_link {
 
         $crate::index_parent!($ty, $parent: Fixed, $child);
         $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -583,6 +916,7 @@ macro_rules! sparse_optional_link {
 
         $crate::index_parent!($ty, $parent: Dynamic, $child);
         $crate::index_child!($ty, $parent, $child: Fixed, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -597,6 +931,7 @@ macro_rules! sparse_optional_link {
 
         $crate::index_parent!($ty, $parent: Dynamic, $child);
         $crate::index_child!($ty, $parent, $child: Dynamic, Optional);
+        // $crate::links_trait!($ty, $parent, $child, Optional);
 
         impl $ty {
             $crate::unlink!($parent, $child);
@@ -655,29 +990,6 @@ macro_rules! define_links_inner {
             {
                 self.links.children.component()
             }
-
-            pub fn parents(
-                &self,
-            ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
-            {
-                self.links.parent.component()
-            }
-        }
-
-        impl $crate::links::Parents for $ty {
-            type Output =
-                $crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>;
-            fn parents(&self) -> &Self::Output {
-                $ty::parents(self)
-            }
-        }
-
-        impl $crate::links::Children for $ty {
-            type Output =
-                $crate::component::Component<$parent, $crate::hash::HashSet<$crate::Id<$child>>>;
-            fn children(&self) -> &Self::Output {
-                $ty::children(self)
-            }
         }
     };
     ($ty:ident, $parent:ident: IdMap, $child:ident) => {
@@ -721,28 +1033,6 @@ macro_rules! define_links_inner {
                 &self,
             ) -> &$crate::id_map::IdMap<$parent, $crate::hash::HashSet<$crate::Id<$child>>> {
                 self.links.children.id_map()
-            }
-
-            pub fn parents(
-                &self,
-            ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
-            {
-                self.links.parent.component()
-            }
-        }
-
-        impl $crate::links::Parents for $ty {
-            type Output =
-                $crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>;
-            fn parents(&self) -> &Self::Output {
-                $ty::parents(self)
-            }
-        }
-
-        impl $crate::links::Children for $ty {
-            type Output = $crate::id_map::IdMap<$parent, $crate::hash::HashSet<$crate::Id<$child>>>;
-            fn children(&self) -> &Self::Output {
-                $ty::children(self)
             }
         }
     };
@@ -984,18 +1274,91 @@ macro_rules! validate {
     };
 }
 
+#[macro_export]
+macro_rules! links_trait {
+    ($ty:ident, $parent:ident: Component, $child:ident, Required) => {
+        impl $crate::links::LinksTrait for $ty {
+            // type Parents = $crate::links::Parents<$parent, $child>;
+            // type Children =
+            //     $crate::id_map::IdMap<$parent, $crate::hash::HashSet<$crate::Id<$child>>>;
+            // fn parents(&self) -> &Self::Parents {
+            //     todo!()
+            // }
+            // fn children(&self) -> &Self::Children {
+            //     todo!()
+            // }
+        }
+    };
+
+    ($ty:ident, $parent:ident: Component, $child:ident, Optional) => {
+        // impl AsRef<$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>>
+        //     for $ty
+        // {
+        //     fn as_ref(
+        //         &self,
+        //     ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
+        //     {
+        //         &self.links.parent.component()
+        //     }
+        // }
+        //
+        // impl $ty {
+        //     pub fn parents(
+        //         &self,
+        //     ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
+        //     {
+        //         self.links.parent.component()
+        //     }
+        // }
+    };
+
+    ($ty:ident, $parent:ident: IdMap, $child:ident, Required) => {
+        // impl $crate::links::LinksTrait for $ty {
+        //     type Parents = $crate::links::Parents<$parent, $child>;
+        //     type Children = $children;
+        //     fn parents(&self) -> &Self::Parents {
+        //         todo!()
+        //     }
+        //     fn children(&self) -> &Self::Children {
+        //         todo!()
+        //     }
+        // }
+    };
+
+    ($ty:ident, $parent:ident: IdMap, $child:ident, Optional) => {
+        // impl AsRef<$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>>
+        //     for $ty
+        // {
+        //     fn as_ref(
+        //         &self,
+        //     ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
+        //     {
+        //         &self.links.parent.component()
+        //     }
+        // }
+        //
+        // impl $ty {
+        //     pub fn parents(
+        //         &self,
+        //     ) -> &$crate::component::Component<$child, std::option::Option<$crate::Id<$parent>>>
+        //     {
+        //         self.links.parent.component()
+        //     }
+        // }
+    };
+}
+
 #[cfg(test)]
 mod test {
     #![allow(dead_code)]
 
-    use super::*;
-    use crate::{Allocator, Dynamic, Entity, Fixed};
+    use crate::{Dynamic, Entity, Static};
 
     #[derive(Debug)]
     pub struct FixA;
 
     impl Entity for FixA {
-        type IdType = Fixed;
+        type IdType = Static;
     }
 
     #[derive(Debug)]
@@ -1009,7 +1372,7 @@ mod test {
     pub struct FixB;
 
     impl Entity for FixB {
-        type IdType = Fixed;
+        type IdType = Static;
     }
 
     #[derive(Debug)]
@@ -1019,175 +1382,192 @@ mod test {
         type IdType = Dynamic;
     }
 
-    dense_range_link!(FixFixRange, FixA, FixB);
-    sparse_range_link!(FixFixRangeMap, FixA, FixB);
-
-    dense_required_link!(FixFixReq, FixA: Fixed, FixB: Fixed);
-    dense_required_link!(FixDynReq, FixA: Fixed, DynB: Dynamic);
-
-    dense_optional_link!(DynDynOpt, DynA: Dynamic, DynB: Dynamic);
-    dense_optional_link!(DynFixOpt, DynA: Dynamic, FixB: Fixed);
-    dense_optional_link!(FixDynOpt, FixA: Fixed, DynB: Dynamic);
-    dense_optional_link!(FixFixOpt, FixA: Fixed, FixB: Fixed);
-
-    sparse_required_link!(FixFixReqMap, FixA: Fixed, FixB: Fixed);
-    sparse_required_link!(FixDynReqMap, FixA: Fixed, DynB: Dynamic);
-
-    sparse_optional_link!(DynDynOptMap, DynA: Dynamic, DynB: Dynamic);
-    sparse_optional_link!(DynFixOptMap, DynA: Dynamic, FixB: Fixed);
-    sparse_optional_link!(FixDynOptMap, FixA: Fixed, DynB: Dynamic);
-    sparse_optional_link!(FixFixOptMap, FixA: Fixed, FixB: Fixed);
-
-    #[test]
-    fn test() {
-        let mut links = DynDynOptMap::default();
-        let mut dyn_a = Allocator::<DynA>::default();
-        let mut dyn_b = Allocator::<DynB>::default();
-
-        let id_a = dyn_a.create();
-        let id_b = dyn_b.create();
-
-        links.link(id_a, id_b);
-
-        assert!(links[id_a].contains(&id_b.id()));
-        assert_eq!(Some(id_a.id()), links[id_b]);
-
-        links.unlink(id_b);
-
-        assert!(links.get_children(id_a).is_none());
-        assert_eq!(None, links[id_b]);
-
-        let mut ids = vec![id_b.value];
-        let killed = dyn_b.kill_multiple(&mut ids);
-
-        assert!(ids.is_empty());
-
-        links.kill_children(&killed);
-
-        assert!(links.get_children(id_a).is_none());
-    }
-
-    #[test]
-    #[should_panic]
-    #[cfg(debug_assertions)]
-    fn validate_unupdated_parent_should_panic() {
-        let links = DynDynOptMap::default();
-        let mut dyn_a = Allocator::<DynA>::default();
-        let dyn_b = Allocator::<DynB>::default();
-
-        let id = dyn_a.create().value;
-        dyn_a.kill(id);
-
-        links.validate(&dyn_a, &dyn_b);
-    }
-
-    #[test]
-    #[should_panic]
-    #[cfg(debug_assertions)]
-    fn validate_unupdated_child_should_panic() {
-        let links = DynDynOptMap::default();
-        let dyn_a = Allocator::<DynA>::default();
-        let mut dyn_b = Allocator::<DynB>::default();
-
-        let id = dyn_b.create().value;
-        dyn_b.kill(id);
-
-        links.validate(&dyn_a, &dyn_b);
-    }
-
-    fn validate_updated_succeeds() {
-        let mut links = DynDynOptMap::default();
-        let mut dyn_a = Allocator::<DynA>::default();
-        let mut dyn_b = Allocator::<DynB>::default();
-
-        let id_a = dyn_a.create();
-        let id_b = dyn_b.create();
-
-        links.kill_parent(id_a);
-        links.kill_child(id_b);
-
-        let id_a = id_a.value;
-        let id_b = id_b.value;
-
-        dyn_a.kill(id_a);
-        dyn_b.kill(id_b);
-
-        links.validate(&dyn_a, &dyn_b);
-    }
-
-    #[test]
-    fn size_test() {
-        struct D1;
-        impl Entity for D1 {
-            type IdType = Dynamic;
-        }
-        struct D2;
-        impl Entity for D2 {
-            type IdType = Dynamic;
-        }
-
-        #[cfg(debug_assertions)]
-        assert_eq!(
-            64,
-            std::mem::size_of::<RawLinks<D1, D2, RawComponent<D1, Vec<Id<D2>>>>>()
-        );
-
-        #[cfg(not(debug_assertions))]
-        assert_eq!(
-            48,
-            std::mem::size_of::<RawLinks<D1, D2, RawComponent<D1, Vec<Id<D2>>>>>()
-        );
-
-        #[cfg(debug_assertions)]
-        assert_eq!(
-            80,
-            std::mem::size_of::<RawLinks<D1, D2, RawIdMap<D1, Vec<Id<D2>>>>>()
-        );
-
-        #[cfg(not(debug_assertions))]
-        assert_eq!(
-            56,
-            std::mem::size_of::<RawLinks<D1, D2, RawIdMap<D1, Vec<Id<D2>>>>>()
-        );
-    }
-
-    #[test]
-    fn range_links() {
-        let mut links = FixFixRange::default();
-
-        let p = Id::new(0, ());
-        let c0 = Id::new(0, ());
-        let c1 = Id::new(1, ());
-
-        links.link(p, c0);
-        links.link(p, c1);
-
-        assert_eq!(vec![c0, c1], links[p].into_iter().collect::<Vec<_>>());
-        assert_eq!(p, links[c0]);
-        assert_eq!(p, links[c1]);
-
-        // there should be no entries for these ids
-        assert_eq!(None, links.get_children(Id::new(1, ())));
-        assert_eq!(None, links.get_parent(Id::new(2, ())));
-    }
-
-    #[test]
-    fn range_links_map() {
-        let mut links = FixFixRangeMap::default();
-
-        let p = Id::new(0, ());
-        let c0 = Id::new(0, ());
-        let c1 = Id::new(1, ());
-
-        links.link(p, c0);
-        links.link(p, c1);
-
-        assert_eq!(vec![c0, c1], links[p].into_iter().collect::<Vec<_>>());
-        assert_eq!(p, links[c0]);
-        assert_eq!(p, links[c1]);
-
-        // there should be no entries for these ids
-        assert_eq!(None, links.get_children(Id::new(1, ())));
-        assert_eq!(None, links.get_parent(Id::new(2, ())));
-    }
+    // dense_range_link!(FixFixRange, FixA, FixB);
+    // sparse_range_link!(FixFixRangeMap, FixA, FixB);
+    //
+    // dense_required_link!(FixFixReq, FixA: Fixed, FixB: Fixed);
+    // dense_required_link!(FixDynReq, FixA: Fixed, DynB: Dynamic);
+    //
+    // dense_optional_link!(DynDynOpt, DynA: Dynamic, DynB: Dynamic);
+    // dense_optional_link!(DynFixOpt, DynA: Dynamic, FixB: Fixed);
+    // dense_optional_link!(FixDynOpt, FixA: Fixed, DynB: Dynamic);
+    // dense_optional_link!(FixFixOpt, FixA: Fixed, FixB: Fixed);
+    //
+    // sparse_required_link!(FixFixReqMap, FixA: Fixed, FixB: Fixed);
+    // sparse_required_link!(FixDynReqMap, FixA: Fixed, DynB: Dynamic);
+    //
+    // sparse_optional_link!(DynDynOptMap, DynA: Dynamic, DynB: Dynamic);
+    // sparse_optional_link!(DynFixOptMap, DynA: Dynamic, FixB: Fixed);
+    // sparse_optional_link!(FixDynOptMap, FixA: Fixed, DynB: Dynamic);
+    // sparse_optional_link!(FixFixOptMap, FixA: Fixed, FixB: Fixed);
+    //
+    // #[test]
+    // fn test() {
+    //     let mut links = DynDynOptMap::default();
+    //     let mut dyn_a = Allocator::<DynA>::default();
+    //     let mut dyn_b = Allocator::<DynB>::default();
+    //
+    //     let id_a = dyn_a.create();
+    //     let id_b = dyn_b.create();
+    //
+    //     links.link(id_a, id_b);
+    //
+    //     assert!(links[id_a].contains(&id_b.id()));
+    //     assert_eq!(Some(id_a.id()), links[id_b]);
+    //
+    //     links.unlink(id_b);
+    //
+    //     assert!(links.get_children(id_a).is_none());
+    //     assert_eq!(None, links[id_b]);
+    //
+    //     let mut ids = vec![id_b.value];
+    //     let killed = dyn_b.kill_multiple(&mut ids);
+    //
+    //     assert!(ids.is_empty());
+    //
+    //     links.kill_children(&killed);
+    //
+    //     assert!(links.get_children(id_a).is_none());
+    // }
+    //
+    // #[test]
+    // #[should_panic]
+    // #[cfg(debug_assertions)]
+    // fn validate_unupdated_parent_should_panic() {
+    //     let links = DynDynOptMap::default();
+    //     let mut dyn_a = Allocator::<DynA>::default();
+    //     let dyn_b = Allocator::<DynB>::default();
+    //
+    //     let id = dyn_a.create().value;
+    //     dyn_a.kill(id);
+    //
+    //     links.validate(&dyn_a, &dyn_b);
+    // }
+    //
+    // #[test]
+    // #[should_panic]
+    // #[cfg(debug_assertions)]
+    // fn validate_unupdated_child_should_panic() {
+    //     let links = DynDynOptMap::default();
+    //     let dyn_a = Allocator::<DynA>::default();
+    //     let mut dyn_b = Allocator::<DynB>::default();
+    //
+    //     let id = dyn_b.create().value;
+    //     dyn_b.kill(id);
+    //
+    //     links.validate(&dyn_a, &dyn_b);
+    // }
+    //
+    // fn validate_updated_succeeds() {
+    //     let mut links = DynDynOptMap::default();
+    //     let mut dyn_a = Allocator::<DynA>::default();
+    //     let mut dyn_b = Allocator::<DynB>::default();
+    //
+    //     let id_a = dyn_a.create();
+    //     let id_b = dyn_b.create();
+    //
+    //     links.kill_parent(id_a);
+    //     links.kill_child(id_b);
+    //
+    //     let id_a = id_a.value;
+    //     let id_b = id_b.value;
+    //
+    //     dyn_a.kill(id_a);
+    //     dyn_b.kill(id_b);
+    //
+    //     links.validate(&dyn_a, &dyn_b);
+    // }
+    //
+    // #[test]
+    // fn size_test() {
+    //     struct D1;
+    //     impl Entity for D1 {
+    //         type IdType = Dynamic;
+    //     }
+    //     struct D2;
+    //     impl Entity for D2 {
+    //         type IdType = Dynamic;
+    //     }
+    //
+    //     #[cfg(debug_assertions)]
+    //     assert_eq!(
+    //         64,
+    //         std::mem::size_of::<RawLinks<D1, D2, RawComponent<D1, Vec<Id<D2>>>>>()
+    //     );
+    //
+    //     #[cfg(not(debug_assertions))]
+    //     assert_eq!(
+    //         48,
+    //         std::mem::size_of::<RawLinks<D1, D2, RawComponent<D1, Vec<Id<D2>>>>>()
+    //     );
+    //
+    //     #[cfg(debug_assertions)]
+    //     assert_eq!(
+    //         80,
+    //         std::mem::size_of::<RawLinks<D1, D2, RawIdMap<D1, Vec<Id<D2>>>>>()
+    //     );
+    //
+    //     #[cfg(not(debug_assertions))]
+    //     assert_eq!(
+    //         56,
+    //         std::mem::size_of::<RawLinks<D1, D2, RawIdMap<D1, Vec<Id<D2>>>>>()
+    //     );
+    // }
+    //
+    // #[test]
+    // fn range_links() {
+    //     let mut links = FixFixRange::default();
+    //
+    //     let p = Id::new(0, ());
+    //     let c0 = Id::new(0, ());
+    //     let c1 = Id::new(1, ());
+    //
+    //     links.link(p, c0);
+    //     links.link(p, c1);
+    //
+    //     assert_eq!(vec![c0, c1], links[p].into_iter().collect::<Vec<_>>());
+    //     assert_eq!(p, links[c0]);
+    //     assert_eq!(p, links[c1]);
+    //
+    //     // there should be no entries for these ids
+    //     assert_eq!(None, links.get_children(Id::new(1, ())));
+    //     assert_eq!(None, links.get_parent(Id::new(2, ())));
+    // }
+    //
+    // #[test]
+    // fn range_links_map() {
+    //     let mut links = FixFixRangeMap::default();
+    //
+    //     let p = Id::new(0, ());
+    //     let c0 = Id::new(0, ());
+    //     let c1 = Id::new(1, ());
+    //
+    //     links.link(p, c0);
+    //     links.link(p, c1);
+    //
+    //     assert_eq!(vec![c0, c1], links[p].into_iter().collect::<Vec<_>>());
+    //     assert_eq!(p, links[c0]);
+    //     assert_eq!(p, links[c1]);
+    //
+    //     // there should be no entries for these ids
+    //     assert_eq!(None, links.get_children(Id::new(1, ())));
+    //     assert_eq!(None, links.get_parent(Id::new(2, ())));
+    // }
+    //
+    // #[test]
+    // fn iter_test() {
+    //     use iter_context::ContextualIterator;
+    //
+    //     let link = FixFixRange::default();
+    //     let comp = crate::component::Component::<FixB, ()>::default();
+    //
+    //     comp.iter().zip(link.parents()).for_each(|(u, l)| {});
+    //
+    //     let d = DynDynOpt::default();
+    //     let a = Allocator::default();
+    //     let b = Allocator::default();
+    //     let v = d.validate(&a, &b);
+    //     // let p = v.as_ref();
+    //     // p.zip(p).for_each(|(a, b)| {});
+    // }
 }

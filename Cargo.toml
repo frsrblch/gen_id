@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ref-cast = "^1.0"
 nonmax = "0.5.0"
 fxhash = "^0.2"
 force_derive = { git = "https://github.com/frsrblch/force_derive" }

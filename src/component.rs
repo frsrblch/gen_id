@@ -1,4 +1,5 @@
 use crate::{Entity, Id, ValidId};
+use ref_cast::RefCast;
 use std::marker::PhantomData;
 
 #[derive(Debug)]
@@ -83,8 +84,7 @@ impl<E: Entity, T> RawComponent<E, T> {
     }
 
     pub fn component(&self) -> &Component<E, T> {
-        let ptr = self as *const RawComponent<E, T> as *const Component<E, T>;
-        unsafe { &*ptr }
+        Component::ref_cast(self)
     }
 }
 
@@ -128,7 +128,7 @@ impl<'a, E: Entity, T> iter_context::ContextualIterator for &'a mut RawComponent
 }
 
 #[repr(transparent)]
-#[derive(Debug)]
+#[derive(Debug, RefCast)]
 pub struct Component<E, T> {
     values: RawComponent<E, T>,
 }
