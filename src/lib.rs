@@ -9,6 +9,12 @@ use std::marker::PhantomData;
 use std::num::NonZeroU16;
 use std::ops::Index;
 
+pub mod component;
+pub mod id_map;
+pub mod link;
+pub mod links;
+pub mod relations;
+
 pub mod hash {
     pub use fxhash::FxHashMap as HashMap;
     pub use fxhash::FxHashSet as HashSet;
@@ -33,11 +39,6 @@ pub trait GetMut<Key> {
     type Value;
     fn get_mut(&mut self, key: Key) -> Option<&mut Self::Value>;
 }
-
-pub mod component;
-pub mod id_map;
-pub mod link;
-pub mod links;
 
 pub trait Entity {
     type IdType: IdType;
