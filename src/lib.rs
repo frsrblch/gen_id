@@ -67,7 +67,6 @@ impl IdType for Dynamic {
 pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord {
     const MIN: Self;
     const MAX: Self;
-    fn first() -> Self;
     #[must_use]
     fn next(self) -> Self;
     fn u64(self) -> u64;
@@ -76,8 +75,6 @@ pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord {
 impl GenTrait for () {
     const MIN: Self = ();
     const MAX: Self = ();
-
-    fn first() -> Self {}
 
     fn next(self) {}
 
@@ -90,17 +87,13 @@ impl GenTrait for () {
 pub struct Gen(NonZeroU16);
 
 impl GenTrait for Gen {
-    const MIN: Self = Self(unsafe { NonZeroU16::new_unchecked(1) });
-    const MAX: Self = Self(unsafe { NonZeroU16::new_unchecked(u16::MAX) });
-
-    fn first() -> Self {
-        Self(NonZeroU16::new(1).unwrap())
-    }
+    const MIN: Self = unsafe { Self(NonZeroU16::new_unchecked(1)) };
+    const MAX: Self = unsafe { Self(NonZeroU16::new_unchecked(u16::MAX)) };
 
     fn next(self) -> Self {
         NonZeroU16::new(self.0.get() + 1)
             .map(Self)
-            .unwrap_or_else(Self::first)
+            .unwrap_or(Self::MIN)
     }
 
     fn u64(self) -> u64 {
@@ -254,7 +247,7 @@ impl<E: Entity<IdType = Dynamic>> Allocator<E> {
 
     fn create_new(&mut self) -> Id<E> {
         let index = self.ids.len() as u32;
-        let gen = Gen::first();
+        let gen = Gen::MIN;
         let id = Id::new(index, gen);
         self.ids.push(Entry::from(id));
         id
@@ -748,18 +741,18 @@ fn id_creation() {
 
     let id0 = alloc.create().value;
     assert_eq!(0, id0.index.get());
-    assert_eq!(Gen::first(), id0.gen);
+    assert_eq!(Gen::MIN, id0.gen);
 
     let id1 = alloc.create().value;
     assert_eq!(1, id1.index.get());
-    assert_eq!(Gen::first(), id1.gen);
+    assert_eq!(Gen::MIN, id1.gen);
 
     assert!(alloc.kill(id1)); // first it's alive
     assert!(!alloc.kill(id1)); // then it's not
 
     let id2 = alloc.create().value;
     assert_eq!(1, id2.index.get());
-    assert_eq!(Gen::first().next(), id2.gen);
+    assert_eq!(Gen::MIN.next(), id2.gen);
 
     assert_ne!(id1.gen, id2.gen); // ensure that gen is incrementing
 }
