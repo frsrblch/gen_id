@@ -445,10 +445,12 @@ impl<'v, E: Entity> Killed<'v, E> {
         &self.ids
     }
 
+    #[cfg(debug_assertions)]
     pub fn before(&self) -> &AllocGen<E> {
         &self.before
     }
 
+    #[cfg(debug_assertions)]
     pub fn after(&self) -> &AllocGen<E> {
         &self.after
     }
