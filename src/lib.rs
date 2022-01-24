@@ -148,14 +148,16 @@ impl<E: Entity> Eq for Id<E> {}
 
 impl<E: Entity> PartialOrd for Id<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
 impl<E: Entity> Ord for Id<E> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.index
-            .cmp(&other.index)
+        // the NonMax types don't reverse comparison
+        other
+            .index
+            .cmp(&self.index)
             .then_with(|| self.gen.cmp(&other.gen))
     }
 }
@@ -168,13 +170,13 @@ impl<E: Entity> std::hash::Hash for Id<E> {
 }
 
 impl<E: Entity> Id<E> {
-    pub const MIN: Self = Id {
+    const MIN: Self = Id {
         index: unsafe { NonMaxU32::new_unchecked(0) },
         gen: <GenType<E> as GenTrait>::MIN,
         marker: PhantomData,
     };
 
-    pub const MAX: Self = Id {
+    const MAX: Self = Id {
         index: unsafe { NonMaxU32::new_unchecked(u32::MAX - 1) },
         gen: <GenType<E> as GenTrait>::MAX,
         marker: PhantomData,
@@ -204,6 +206,8 @@ impl<E: Entity> Id<E> {
 #[cfg(test)]
 mod id_test {
     use super::{Dynamic, Entity, Id, Static};
+    use crate::{Allocator, Gen, GenTrait};
+    use nonmax::NonMaxU32;
 
     #[test]
     fn id_sizes() {
@@ -224,6 +228,24 @@ mod id_test {
         assert_eq!(4, size_of::<Option<Id<F>>>());
         assert_eq!(8, size_of::<Id<D>>());
         assert_eq!(8, size_of::<Option<Id<D>>>());
+    }
+
+    #[test]
+    fn cmp() {
+        #[derive(Debug)]
+        struct D;
+        impl Entity for D {
+            type IdType = Dynamic;
+        }
+
+        let mut alloc = Allocator::<D>::default();
+        let id0 = alloc.create().value;
+        let id1 = alloc.create().value;
+
+        assert!(NonMaxU32::new(0) > NonMaxU32::new(1));
+        assert!(Gen::MIN < Gen::MAX);
+        assert!(Id::<D>::MIN < Id::<D>::MAX);
+        assert!(id0 < id1);
     }
 }
 
@@ -333,6 +355,10 @@ impl<E: Entity<IdType = Dynamic>> Allocator<E> {
     pub fn validate(&self, id: Id<E>) -> Option<Valid<Id<E>>> {
         self.is_alive(id).then(|| Valid::new(id))
     }
+
+    pub fn create_only(&mut self) -> &mut CreateOnly<E> {
+        CreateOnly::ref_cast_mut(self)
+    }
 }
 
 impl<'v, E: Entity<IdType = Dynamic>> Validator<'v, E> for &'v Allocator<E> {
@@ -388,6 +414,7 @@ fn entry_size() {
 }
 
 #[repr(transparent)]
+#[derive(Debug, RefCast)]
 pub struct CreateOnly<'v, E: Entity> {
     alloc: Allocator<E>,
     marker: PhantomData<&'v ()>,
