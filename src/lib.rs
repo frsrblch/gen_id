@@ -61,25 +61,28 @@ pub struct Dynamic;
 
 impl IdType for Dynamic {
     type Gen = Gen;
-    type AllocGen = u64;
+    type AllocGen = u32;
 }
 
 pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord {
     const MIN: Self;
     const MAX: Self;
+    type BYTES: AsRef<[u8]>;
     #[must_use]
     fn next(self) -> Self;
-    fn u64(self) -> u64;
+    fn bytes(&self) -> Self::BYTES;
 }
 
 impl GenTrait for () {
     const MIN: Self = ();
     const MAX: Self = ();
 
+    type BYTES = [u8; 0];
+
     fn next(self) {}
 
-    fn u64(self) -> u64 {
-        0
+    fn bytes(&self) -> [u8; 0] {
+        []
     }
 }
 
@@ -90,14 +93,16 @@ impl GenTrait for Gen {
     const MIN: Self = unsafe { Self(NonZeroU16::new_unchecked(1)) };
     const MAX: Self = unsafe { Self(NonZeroU16::new_unchecked(u16::MAX)) };
 
+    type BYTES = [u8; 2];
+
     fn next(self) -> Self {
         NonZeroU16::new(self.0.get() + 1)
             .map(Self)
             .unwrap_or(Self::MIN)
     }
 
-    fn u64(self) -> u64 {
-        self.0.get() as u64
+    fn bytes(&self) -> [u8; 2] {
+        self.0.get().to_ne_bytes()
     }
 }
 
@@ -109,13 +114,22 @@ impl AllocGenTrait for () {
     fn increment<E: Entity>(&mut self, _: Id<E>) {}
 }
 
-impl AllocGenTrait for u64 {
+impl AllocGenTrait for u32 {
     fn increment<E: Entity>(&mut self, id: Id<E>) {
-        *self <<= 1;
-        *self ^= (id.index.get() as u64) << 32 | id.gen.u64()
+        let mut hasher = crc32fast::Hasher::new_with_initial(*self);
+        hasher.update(&id.index.get().to_le_bytes());
+        hasher.update(id.gen.bytes().as_ref());
+        *self = hasher.finalize();
     }
 }
 
+/// A running checksum of `Id<E>` that have been killed.
+///
+/// If two `AllocGen<E>` are equal, they have seen the same `Id<E>` killed in the same order.
+///
+/// If only Valid<Id<E>> can be added to the collection, the `Allocator<E>` and collection
+/// of `Id<E>` agree on which `Id<E>` have been killed, and the logic of removing killed `Id<E>`
+/// from a collection is correct, an entire collection of `Id<E>` can be known to be valid.
 #[derive(Debug, ForceDefault, ForceClone, ForceEq, ForcePartialEq)]
 pub struct AllocGen<E: Entity> {
     value: <<E as Entity>::IdType as IdType>::AllocGen,
@@ -200,52 +214,6 @@ impl<E: Entity> Id<E> {
 
     pub fn index(self) -> usize {
         self.index.get() as usize
-    }
-}
-
-#[cfg(test)]
-mod id_test {
-    use super::{Dynamic, Entity, Id, Static};
-    use crate::{Allocator, Gen, GenTrait};
-    use nonmax::NonMaxU32;
-
-    #[test]
-    fn id_sizes() {
-        #[derive(Debug)]
-        struct F;
-        impl Entity for F {
-            type IdType = Static;
-        }
-
-        #[derive(Debug)]
-        struct D;
-        impl Entity for D {
-            type IdType = Dynamic;
-        }
-
-        use std::mem::size_of;
-        assert_eq!(4, size_of::<Id<F>>());
-        assert_eq!(4, size_of::<Option<Id<F>>>());
-        assert_eq!(8, size_of::<Id<D>>());
-        assert_eq!(8, size_of::<Option<Id<D>>>());
-    }
-
-    #[test]
-    fn cmp() {
-        #[derive(Debug)]
-        struct D;
-        impl Entity for D {
-            type IdType = Dynamic;
-        }
-
-        let mut alloc = Allocator::<D>::default();
-        let id0 = alloc.create().value;
-        let id1 = alloc.create().value;
-
-        assert!(NonMaxU32::new(0) > NonMaxU32::new(1));
-        assert!(Gen::MIN < Gen::MAX);
-        assert!(Id::<D>::MIN < Id::<D>::MAX);
-        assert!(id0 < id1);
     }
 }
 
@@ -481,6 +449,28 @@ impl<'v, E: Entity> Killed<'v, E> {
     pub fn after(&self) -> &AllocGen<E> {
         &self.after
     }
+
+    #[cfg(debug_assertions)]
+    pub fn nofity<Collection: Kill<E> + AsRef<AllocGen<E>>>(&self, collection: &mut Collection) {
+        assert!(self.before() == collection.as_ref());
+
+        for id in self.ids() {
+            collection.kill(id);
+        }
+
+        assert!(self.after() == collection.as_ref());
+    }
+
+    #[cfg(not(debug_assertions))]
+    pub fn nofity<Collection: Kill<E>>(&self, collection: &mut Collection) {
+        for id in self.ids() {
+            collection.kill(id);
+        }
+    }
+}
+
+pub trait Kill<E> {
+    fn kill<V: ValidId<Entity = E>>(&mut self, id: V);
 }
 
 #[derive(Debug, ForceDefault)]
@@ -759,78 +749,166 @@ impl<'v, T: AsRef<U>, U> AsRef<Valid<'v, U>> for Valid<'v, T> {
     }
 }
 
-#[test]
-fn id_creation() {
-    #[derive(Debug)]
-    struct E;
-    impl Entity for E {
-        type IdType = Dynamic;
+impl<'v, E: Entity> Valid<'v, (&Id<E>, &Id<E>)> {
+    pub fn key(&self) -> Valid<'v, &Id<E>> {
+        Valid::new(self.value.0)
     }
-    let mut alloc = Allocator::<E>::default();
 
-    let id0 = alloc.create().value;
-    assert_eq!(0, id0.index.get());
-    assert_eq!(Gen::MIN, id0.gen);
-
-    let id1 = alloc.create().value;
-    assert_eq!(1, id1.index.get());
-    assert_eq!(Gen::MIN, id1.gen);
-
-    assert!(alloc.kill(id1)); // first it's alive
-    assert!(!alloc.kill(id1)); // then it's not
-
-    let id2 = alloc.create().value;
-    assert_eq!(1, id2.index.get());
-    assert_eq!(Gen::MIN.next(), id2.gen);
-
-    assert_ne!(id1.gen, id2.gen); // ensure that gen is incrementing
+    pub fn value(&self) -> Valid<'v, &Id<E>> {
+        Valid::new(self.value.1)
+    }
 }
 
-#[test]
-fn append_empty() {
-    #[derive(Debug)]
-    struct F;
-    impl Entity for F {
-        type IdType = Static;
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn id_sizes() {
+        #[derive(Debug)]
+        struct F;
+        impl Entity for F {
+            type IdType = Static;
+        }
+
+        #[derive(Debug)]
+        struct D;
+        impl Entity for D {
+            type IdType = Dynamic;
+        }
+
+        use std::mem::size_of;
+        assert_eq!(4, size_of::<Id<F>>());
+        assert_eq!(4, size_of::<Option<Id<F>>>());
+        assert_eq!(8, size_of::<Id<D>>());
+        assert_eq!(8, size_of::<Option<Id<D>>>());
     }
 
-    let mut range = IdRange::default();
-    assert!(range.is_empty());
-    let id = Id::<F>::new(2, ());
+    #[test]
+    fn cmp() {
+        #[derive(Debug)]
+        struct D;
+        impl Entity for D {
+            type IdType = Dynamic;
+        }
 
-    range.append(id);
-    assert_eq!(IdRange::from(id), range);
-}
+        let mut alloc = Allocator::<D>::default();
+        let id0 = alloc.create().value;
+        let id1 = alloc.create().value;
 
-#[test]
-#[should_panic]
-fn append_given_invalid_index() {
-    #[derive(Debug)]
-    struct F;
-    impl Entity for F {
-        type IdType = Static;
+        assert!(NonMaxU32::new(0) > NonMaxU32::new(1));
+        assert!(Gen::MIN < Gen::MAX);
+        assert!(Id::<D>::MIN < Id::<D>::MAX);
+        assert!(id0 < id1);
     }
 
-    let mut range = IdRange::<F>::new(0, 1);
+    #[test]
+    fn id_creation() {
+        #[derive(Debug)]
+        struct E;
+        impl Entity for E {
+            type IdType = Dynamic;
+        }
+        let mut alloc = Allocator::<E>::default();
 
-    let id = Id::new(2, ());
+        let id0 = alloc.create().value;
+        assert_eq!(0, id0.index.get());
+        assert_eq!(Gen::MIN, id0.gen);
 
-    range.append(id);
-}
+        let id1 = alloc.create().value;
+        assert_eq!(1, id1.index.get());
+        assert_eq!(Gen::MIN, id1.gen);
 
-#[test]
-fn range_append() {
-    #[derive(Debug)]
-    struct F;
-    impl Entity for F {
-        type IdType = Static;
+        assert!(alloc.kill(id1)); // first it's alive
+        assert!(!alloc.kill(id1)); // then it's not
+
+        let id2 = alloc.create().value;
+        assert_eq!(1, id2.index.get());
+        assert_eq!(Gen::MIN.next(), id2.gen);
+
+        assert_ne!(id1.gen, id2.gen); // ensure that gen is incrementing
     }
 
-    let mut range = IdRange::<F>::new(0, 1);
+    #[test]
+    fn increment_gen() {
+        #[derive(Debug)]
+        struct E;
+        impl Entity for E {
+            type IdType = Dynamic;
+        }
 
-    let id = Id::new(1, ());
+        let mut alloc = Allocator::<E>::default();
+        let mut incorrect = AllocGen::<E>::default();
+        let mut correct = AllocGen::<E>::default();
 
-    range.append(id);
+        // skip incrementing gen to simulate an error
+        let id = alloc.create().value;
+        alloc.kill(id);
+        correct.increment(id);
 
-    assert_eq!(IdRange::new(0, 2), range);
+        // do a large number properly
+        for _ in 0..256 {
+            // make sure we aren't just using index 0 the whole time
+            let _ = alloc.create();
+
+            let id = alloc.create().value;
+            alloc.kill(id);
+            correct.increment(id);
+            incorrect.increment(id);
+        }
+
+        // checksums should match because both see same ids killed
+        assert_eq!(correct, alloc.gen);
+        // checksums should not match because the first id was skipped
+        assert_ne!(incorrect, alloc.gen);
+    }
+
+    #[test]
+    fn append_empty() {
+        #[derive(Debug)]
+        struct F;
+        impl Entity for F {
+            type IdType = Static;
+        }
+
+        let mut range = IdRange::default();
+        assert!(range.is_empty());
+        let id = Id::<F>::new(2, ());
+
+        range.append(id);
+        assert_eq!(IdRange::from(id), range);
+    }
+
+    #[test]
+    #[should_panic]
+    fn append_given_invalid_index() {
+        #[derive(Debug)]
+        struct F;
+        impl Entity for F {
+            type IdType = Static;
+        }
+
+        let mut range = IdRange::<F>::new(0, 1);
+
+        let id = Id::new(2, ());
+
+        range.append(id);
+    }
+
+    #[test]
+    fn range_append() {
+        #[derive(Debug)]
+        struct F;
+        impl Entity for F {
+            type IdType = Static;
+        }
+
+        let mut range = IdRange::<F>::new(0, 1);
+
+        let id = Id::new(1, ());
+
+        range.append(id);
+
+        assert_eq!(IdRange::new(0, 2), range);
+    }
 }
