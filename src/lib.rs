@@ -47,7 +47,7 @@ pub trait Entity {
 
 pub trait IdType {
     type Gen: GenTrait;
-    type AllocGen: AllocGenTrait;
+    type AllocGen: std::fmt::Debug + Default + Copy + Eq;
 }
 
 pub struct Static;
@@ -67,23 +67,11 @@ impl IdType for Dynamic {
 pub trait GenTrait: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord {
     const MIN: Self;
     const MAX: Self;
-    type BYTES: AsRef<[u8]>;
-    #[must_use]
-    fn next(self) -> Self;
-    fn bytes(&self) -> Self::BYTES;
 }
 
 impl GenTrait for () {
     const MIN: Self = ();
     const MAX: Self = ();
-
-    type BYTES = [u8; 0];
-
-    fn next(self) {}
-
-    fn bytes(&self) -> [u8; 0] {
-        []
-    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -92,54 +80,37 @@ pub struct Gen(NonZeroU16);
 impl GenTrait for Gen {
     const MIN: Self = unsafe { Self(NonZeroU16::new_unchecked(1)) };
     const MAX: Self = unsafe { Self(NonZeroU16::new_unchecked(u16::MAX)) };
+}
 
-    type BYTES = [u8; 2];
-
+impl Gen {
+    #[must_use]
     fn next(self) -> Self {
         NonZeroU16::new(self.0.get() + 1)
             .map(Self)
             .unwrap_or(Self::MIN)
     }
-
-    fn bytes(&self) -> [u8; 2] {
-        self.0.get().to_ne_bytes()
-    }
 }
 
-pub trait AllocGenTrait: std::fmt::Debug + Default + Copy + Eq {
-    fn increment<E: Entity>(&mut self, id: Id<E>);
-}
-
-impl AllocGenTrait for () {
-    fn increment<E: Entity>(&mut self, _: Id<E>) {}
-}
-
-impl AllocGenTrait for u32 {
-    fn increment<E: Entity>(&mut self, id: Id<E>) {
-        let mut hasher = crc32fast::Hasher::new_with_initial(*self);
-        hasher.update(&id.index.get().to_le_bytes());
-        hasher.update(id.gen.bytes().as_ref());
-        *self = hasher.finalize();
-    }
-}
-
-/// A running checksum of `Id<E>` that have been killed.
+/// A running checksum of IDs that have been killed.
 ///
-/// If two `AllocGen<E>` are equal, they have seen the same `Id<E>` killed in the same order.
+/// If two `AllocGen<E>` are equal, they have seen the same IDs killed (and also in the same order).
 ///
-/// If only Valid<Id<E>> can be added to the collection, the `Allocator<E>` and collection
-/// of `Id<E>` agree on which `Id<E>` have been killed, and the logic of removing killed `Id<E>`
-/// from a collection is correct, an entire collection of `Id<E>` can be known to be valid.
+/// If a collection of IDs can only have valid IDs added to it,
+/// and the allocator and collection agree on which IDs have been killed,
+/// and the logic of removing killed IDs from a collection is correct,
+/// then an entire collection of IDs can be known to be valid
 #[derive(Debug, ForceDefault, ForceClone, ForceEq, ForcePartialEq)]
 pub struct AllocGen<E: Entity> {
     value: <<E as Entity>::IdType as IdType>::AllocGen,
     marker: PhantomData<*const E>,
 }
 
-impl<E: Entity> AllocGen<E> {
-    #[allow(dead_code)]
+impl<E: Entity<IdType = Dynamic>> AllocGen<E> {
     fn increment(&mut self, id: Id<E>) {
-        self.value.increment(id);
+        let mut hasher = crc32fast::Hasher::new_with_initial(self.value);
+        hasher.update(&id.index.get().to_le_bytes());
+        hasher.update(&id.gen.0.get().to_ne_bytes());
+        self.value = hasher.finalize();
     }
 }
 
@@ -185,12 +156,14 @@ impl<E: Entity> std::hash::Hash for Id<E> {
 
 impl<E: Entity> Id<E> {
     const MIN: Self = Id {
+        // SAFETY: trivial
         index: unsafe { NonMaxU32::new_unchecked(0) },
         gen: <GenType<E> as GenTrait>::MIN,
         marker: PhantomData,
     };
 
     const MAX: Self = Id {
+        // SAFETY: trivial
         index: unsafe { NonMaxU32::new_unchecked(u32::MAX - 1) },
         gen: <GenType<E> as GenTrait>::MAX,
         marker: PhantomData,
@@ -199,12 +172,9 @@ impl<E: Entity> Id<E> {
     fn new(index: u32, gen: GenType<E>) -> Self {
         debug_assert_ne!(index, u32::MAX);
 
+        // SAFETY: checked in debug mode
         let index = unsafe { NonMaxU32::new_unchecked(index) };
 
-        Self::new_inner(index, gen)
-    }
-
-    fn new_inner(index: NonMaxU32, gen: GenType<E>) -> Self {
         Self {
             index,
             gen,
@@ -271,7 +241,9 @@ impl<E: Entity<IdType = Dynamic>> Allocator<E> {
                             next_dead: self.next_dead,
                             gen: id.gen.next(),
                         };
+
                         self.next_dead = Some(id.index);
+
                         true
                     } else {
                         false
