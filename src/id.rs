@@ -44,14 +44,6 @@ impl<'v, E: Entity> PartialEq<crate::Valid<'v, Id<E>>> for Id<E> {
     }
 }
 
-impl<E: Entity> PartialEq for Id<E> {
-    fn eq(&self, other: &Self) -> bool {
-        self.index.eq(&other.index) & self.gen.eq(&other.gen)
-    }
-}
-
-impl<E: Entity> Eq for Id<E> {}
-
 impl<E: Entity> PartialOrd for Id<E> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

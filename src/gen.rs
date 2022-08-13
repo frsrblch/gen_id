@@ -10,10 +10,10 @@ use std::num::NonZeroU16;
 pub struct Gen(NonZeroU16);
 
 impl Gen {
-    pub const MIN: Self = unsafe { Self(NonZeroU16::new_unchecked(1)) };
+    pub(crate) const MIN: Self = unsafe { Self(NonZeroU16::new_unchecked(1)) };
 
     #[must_use]
-    pub fn next(self) -> Self {
+    pub(crate) fn next(self) -> Self {
         NonZeroU16::new(self.0.get().wrapping_add(1))
             .map(Self)
             .unwrap_or(Self::MIN)
