@@ -1,0 +1,28 @@
+/// Implement this trait for types to associate collections with that type.
+pub trait Entity: std::fmt::Debug + 'static {
+    type IdType: IdType;
+}
+
+/// Defines the associated types for Id<E> and collections with an [crate::gen::AllocGen<E>] checksum value
+pub trait IdType {
+    type Gen: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord + Send + Sync;
+    type AllocGen: std::fmt::Debug + Default + Clone + Eq;
+}
+
+/// Entity types with an IdType of Static can only be created,
+/// and do not need to be validated before indexing into a collection.
+pub struct Static;
+
+impl IdType for Static {
+    type Gen = ();
+    type AllocGen = ();
+}
+
+/// Entity types with an IdType of Dynamic can be created and destroyed,
+/// and need to be validated before they can be used to index into collections.
+pub struct Dynamic;
+
+impl IdType for Dynamic {
+    type Gen = crate::gen::Gen;
+    type AllocGen = u32;
+}
