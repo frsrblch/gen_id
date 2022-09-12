@@ -188,16 +188,6 @@ impl<E: Entity<IdType = Static>> IntoIterator for &IdRange<E> {
     }
 }
 
-// #[cfg(feature = "rayon")]
-// impl<E: Entity<IdType = Static> + Send> IntoParallelIterator for &IdRange<E> {
-//     type Iter = RangeIter<E>;
-//     type Item = Id<E>;
-//
-//     fn into_par_iter(self) -> Self::Iter {
-//         self.into_iter()
-//     }
-// }
-
 #[derive(ForceClone)]
 pub struct RangeIter<E> {
     range: std::ops::Range<u32>,
@@ -238,49 +228,6 @@ impl<E: Entity<IdType = Static>> DoubleEndedIterator for RangeIter<E> {
 impl<E: Entity<IdType = Static>> ExactSizeIterator for RangeIter<E> {}
 
 impl<E: Entity<IdType = Static>> FusedIterator for RangeIter<E> {}
-
-// #[cfg(feature = "rayon")]
-// impl<E: Entity<IdType = Static> + Send> rayon::iter::ParallelIterator for RangeIter<E> {
-//     type Item = Id<E>;
-//
-//     fn drive_unindexed<C>(self, consumer: C) -> C::Result
-//     where
-//         C: UnindexedConsumer<Self::Item>,
-//     {
-//         consumer.into_folder().consume_iter(self).complete()
-//     }
-// }
-//
-// #[cfg(feature = "rayon")]
-// impl<E: Entity<IdType = Static> + Send> rayon::iter::IndexedParallelIterator for RangeIter<E> {
-//     fn len(&self) -> usize {
-//         self.range.len()
-//     }
-//
-//     fn drive<C: rayon::iter::Consumer<Self::Item>>(self, consumer: C) -> C::Result {
-//         consumer.into_folder().consume_iter(self).complete()
-//     }
-//
-//     fn with_producer<CB: rayon::iter::ProducerCallback<Self::Item>>(self, callback: CB) -> CB::Output {
-//         callback.callback(self)
-//     }
-// }
-//
-// #[cfg(feature = "rayon")]
-// impl<E: Entity<IdType = Static> + Send> Producer for RangeIter<E> {
-//     type Item = Id<E>;
-//     type IntoIter = Self;
-//
-//     fn into_iter(self) -> Self::IntoIter {
-//         self
-//     }
-//
-//     fn split_at(self, index: usize) -> (Self, Self) {
-//         let std::ops::Range { start, end } = self.range;
-//         let mid = start + index as u32;
-//         (RangeIter::new(start..mid), RangeIter::new(mid..end))
-//     }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -485,7 +432,7 @@ mod tests {
     #[test]
     fn send_id() {
         fn send<E: Entity>(id: Id<E>) {
-            std::thread::spawn(move || dbg!(id));
+            std::thread::spawn(move || drop(id));
         }
 
         let id = Id::<Stat>::new(1, ());

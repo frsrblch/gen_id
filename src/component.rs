@@ -341,7 +341,6 @@ impl<'a, E, T: Sync> rayon::prelude::IntoParallelRefIterator<'a> for &'a Compone
 }
 
 macro_rules! impl_assign_op {
-    // Compiler error if I make $t a type parameter
     ($t:ident, $f:ident) => {
         impl<C, T, M, MItem> std::ops::$t<M> for RawComponent<C, T>
         where
@@ -369,33 +368,7 @@ macro_rules! impl_assign_op {
     };
 }
 
-impl<C, T, M, MItem> AddAssign<M> for RawComponent<C, T>
-where
-    M: ContextualIterator<Context = C> + IntoIterator<Item = MItem>,
-    T: AddAssign<MItem>,
-{
-    #[inline]
-    fn add_assign(&mut self, rhs: M) {
-        self.iter_mut()
-            .zip(rhs)
-            .for_each(|(value, item)| value.add_assign(item));
-    }
-}
-
-impl<C, T, M, MItem> AddAssign<M> for Component<C, T>
-where
-    M: ContextualIterator<Context = C> + IntoIterator<Item = MItem>,
-    T: AddAssign<MItem>,
-{
-    #[inline]
-    fn add_assign(&mut self, rhs: M) {
-        self.iter_mut()
-            .zip(rhs)
-            .for_each(|(value, item)| value.add_assign(item));
-    }
-}
-
-// impl_assign_op!(AddAssign, add_assign);
+impl_assign_op!(AddAssign, add_assign);
 impl_assign_op!(SubAssign, sub_assign);
 impl_assign_op!(MulAssign, mul_assign);
 impl_assign_op!(DivAssign, div_assign);
@@ -470,9 +443,6 @@ impl<C, T: Copy> TryAssign<Option<T>> for RawComponent<C, T> {
     {
         self.iter_mut().zip(rhs).for_each(|(value, item)| {
             *value = if let Some(item) = item { item } else { *value };
-            // if let Some(item) = item {
-            //     *value = item;
-            // }
         });
     }
 }
@@ -484,9 +454,6 @@ impl<'a, C, T: Copy + 'a> TryAssign<Option<&'a T>> for RawComponent<C, T> {
     {
         self.iter_mut().zip(rhs).for_each(|(value, item)| {
             *value = if let Some(item) = item { *item } else { *value };
-            // if let Some(item) = item {
-            //     *value = *item;
-            // }
         });
     }
 }
@@ -498,9 +465,6 @@ impl<'a, C, T: Copy + 'a> TryAssign<&'a Option<T>> for RawComponent<C, T> {
     {
         self.iter_mut().zip(rhs).for_each(|(value, item)| {
             *value = if let Some(item) = item { *item } else { *value };
-            // if let Some(item) = item {
-            //     *value = *item;
-            // }
         });
     }
 }
@@ -512,9 +476,6 @@ impl<C, T: Copy> TryAssign<Option<T>> for Component<C, T> {
     {
         self.iter_mut().zip(rhs).for_each(|(value, item)| {
             *value = if let Some(item) = item { item } else { *value };
-            // if let Some(item) = item {
-            //     *value = item;
-            // }
         });
     }
 }
@@ -526,9 +487,6 @@ impl<'a, C, T: Copy + 'a> TryAssign<Option<&'a T>> for Component<C, T> {
     {
         self.iter_mut().zip(rhs).for_each(|(value, item)| {
             *value = if let Some(item) = item { *item } else { *value };
-            // if let Some(item) = item {
-            //     *value = *item;
-            // }
         });
     }
 }
@@ -540,9 +498,6 @@ impl<'a, C, T: Copy + 'a> TryAssign<&'a Option<T>> for Component<C, T> {
     {
         self.iter_mut().zip(rhs).for_each(|(value, item)| {
             *value = if let Some(item) = item { *item } else { *value };
-            // if let Some(item) = item {
-            //     *value = *item;
-            // }
         });
     }
 }
@@ -929,4 +884,6 @@ mod tests {
 
         assert_eq!(vec![1, 1, 4], comp.values.values);
     }
+
+    // TODO test std::ops::_Assign ops
 }

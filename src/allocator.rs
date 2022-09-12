@@ -5,6 +5,9 @@ use nonmax::NonMaxU32;
 use ref_cast::RefCast;
 use std::marker::PhantomData;
 
+#[cfg(feature = "rayon")]
+use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+
 /// Allocates indices for dynamic Ids.
 #[derive(Debug, ForceDefault)]
 pub struct Allocator<E: Entity> {
@@ -91,6 +94,16 @@ impl<E: Entity<IdType = Dynamic>> Allocator<E> {
     #[inline]
     pub fn ids(&self) -> Ids<E> {
         Ids::new(&self.entries)
+    }
+
+    #[cfg(feature = "rayon")]
+    #[inline]
+    pub fn par_ids(&self) -> impl ParallelIterator<Item = Valid<Id<E>>> {
+        self.entries
+            .as_slice()
+            .into_par_iter()
+            .filter_map(|e| e.id())
+            .map(Valid::new)
     }
 
     /// `impl IntoIterator<Item = Option<Valid<Id<E>>>> + [iter_context::ContextualIterator]`
@@ -324,6 +337,12 @@ impl<E: Entity<IdType = Static>> RangeAllocator<E> {
     #[inline]
     pub fn ids(&self) -> IdRange<E> {
         IdRange::new(0, self.next)
+    }
+
+    #[cfg(feature = "rayon")]
+    #[inline]
+    pub fn par_ids(&self) -> impl ParallelIterator<Item = Id<E>> + IndexedParallelIterator {
+        (0..self.next).into_par_iter().map(|i| Id::new(i, ()))
     }
 }
 

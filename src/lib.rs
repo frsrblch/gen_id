@@ -8,9 +8,6 @@ mod id;
 pub mod relations;
 mod valid;
 
-#[allow(dead_code)]
-mod vector;
-
 pub use allocator::{Allocator, RangeAllocator};
 pub use component::Component;
 pub use entity::{Dynamic, Entity, Static};
