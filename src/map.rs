@@ -1,11 +1,24 @@
-use crate::gen::AllocGen;
-use crate::{Entity, Id};
-use force_derive::ForceDefault;
+use ref_cast::RefCast;
 
-#[derive(Debug, ForceDefault)]
+use crate::allocator::KilledIds;
+use crate::gen::AllocGen;
+use crate::valid::Validator;
+use crate::{Dynamic, Entity, Id, Valid, ValidId};
+
+#[derive(Debug)]
 pub struct RawIdMap<E: Entity, T> {
     map: fxhash::FxHashMap<Id<E>, T>,
     gen: AllocGen<E>,
+}
+
+impl<E: Entity, T> Default for RawIdMap<E, T> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            map: Default::default(),
+            gen: Default::default(),
+        }
+    }
 }
 
 impl<E: Entity, T: Clone> Clone for RawIdMap<E, T> {
@@ -73,23 +86,17 @@ impl<E: Entity, T> RawIdMap<E, T> {
 impl<E: Entity<IdType = Dynamic>, T> RawIdMap<E, T> {
     #[inline]
     pub fn kill(&mut self, id: Id<E>) -> Option<T> {
-        #[cfg(debug_assertions)]
         self.gen.increment(id);
-
         self.remove(&id)
     }
 
     #[inline]
-    pub fn kill_many(&mut self, killed: &Killed<E>) {
-        #[cfg(debug_assertions)]
-        assert!(self.gen == killed.before);
-
+    pub fn kill_many(&mut self, killed: &KilledIds<E>) {
+        assert_eq!(&self.gen, killed.before());
         for id in killed.ids() {
             self.kill(*id.value);
         }
-
-        #[cfg(debug_assertions)]
-        assert!(self.gen == killed.after);
+        assert_eq!(&self.gen, killed.after());
     }
 }
 
@@ -110,9 +117,18 @@ impl<E: Entity, T> std::ops::Index<&Id<E>> for RawIdMap<E, T> {
 }
 
 #[repr(transparent)]
-#[derive(Debug, ForceDefault, RefCast)]
+#[derive(Debug, RefCast)]
 pub struct IdMap<E: Entity, T> {
     map: RawIdMap<E, T>,
+}
+
+impl<E: Entity, T> Default for IdMap<E, T> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            map: Default::default(),
+        }
+    }
 }
 
 impl<E: Entity, T: Clone> Clone for IdMap<E, T> {
@@ -172,11 +188,17 @@ impl<E: Entity, T> IdMap<E, T> {
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Id<E>, &mut T)> + '_ {
         self.map.iter_mut()
     }
+}
 
+impl<E: Entity<IdType = Dynamic>, T> IdMap<E, T> {
     #[inline]
     pub fn validate<'v, V: Validator<'v, E>>(&self, v: V) -> &Valid<'v, Self> {
-        #[cfg(debug_assertions)]
-        assert!(&self.map.gen == v.as_ref());
+        assert_eq!(
+            &self.map.gen,
+            v.as_ref(),
+            "collection is out of sync with the allocator: {}",
+            std::any::type_name::<Self>()
+        );
 
         let _ = v;
         Valid::new_ref(self)
@@ -184,8 +206,12 @@ impl<E: Entity, T> IdMap<E, T> {
 
     #[inline]
     pub fn validate_mut<'v, V: Validator<'v, E>>(&mut self, v: V) -> &mut Valid<'v, Self> {
-        #[cfg(debug_assertions)]
-        assert!(&self.map.gen == v.as_ref());
+        assert_eq!(
+            &self.map.gen,
+            v.as_ref(),
+            "collection is out of sync with the allocator: {}",
+            std::any::type_name::<Self>()
+        );
 
         let _ = v;
         Valid::new_mut(self)
@@ -199,7 +225,7 @@ impl<E: Entity<IdType = Dynamic>, T> IdMap<E, T> {
     }
 
     #[inline]
-    pub fn kill_many(&mut self, killed: &Killed<E>) {
+    pub fn kill_many(&mut self, killed: &KilledIds<E>) {
         self.map.kill_many(killed);
     }
 }
@@ -215,20 +241,77 @@ impl<E: Entity, T, V: ValidId<Entity = E>> std::ops::Index<V> for IdMap<E, T> {
 impl<'v, E: Entity, T> Valid<'v, IdMap<E, T>> {
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = (Valid<'v, &Id<E>>, &T)> + '_ {
-        self.value.map.map.iter().map(|(k, v)| (Valid::new(k), v))
+        self.value.iter().map(|(k, v)| (Valid::new(k), v))
     }
 
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (Valid<'v, &Id<E>>, &mut T)> + '_ {
-        self.value
-            .map
-            .map
-            .iter_mut()
-            .map(|(k, v)| (Valid::new(k), v))
+        self.value.iter_mut().map(|(k, v)| (Valid::new(k), v))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{tests::Dyn, Allocator};
+
+    #[test]
+    #[should_panic]
+    fn validate_when_out_of_sync() {
+        let mut a = Allocator::<Dyn>::default();
+        let mut map = IdMap::<Dyn, ()>::default();
+
+        let id = a.create();
+        map.insert(id, ());
+
+        let id = id.value;
+        a.kill(id);
+
+        map.validate(&a);
+    }
+
+    #[test]
+    #[should_panic]
+    fn validate_mut_when_out_of_sync() {
+        let mut a = Allocator::<Dyn>::default();
+        let mut map = IdMap::<Dyn, ()>::default();
+
+        let id = a.create();
+        map.insert(id, ());
+
+        let id = id.value;
+        a.kill(id);
+
+        map.validate_mut(&a);
+    }
+
+    #[test]
+    fn validate_when_in_sync() {
+        let mut a = Allocator::<Dyn>::default();
+        let mut map = IdMap::<Dyn, ()>::default();
+
+        let id = a.create();
+        map.insert(id, ());
+
+        map.kill(id);
+        let id = id.value;
+        a.kill(id);
+
+        map.validate(&a);
+    }
+
+    #[test]
+    fn validate_mut_when_in_sync() {
+        let mut a = Allocator::<Dyn>::default();
+        let mut map = IdMap::<Dyn, ()>::default();
+
+        let id = a.create();
+        map.insert(id, ());
+
+        map.kill(id);
+        let id = id.value;
+        a.kill(id);
+
+        map.validate_mut(&a);
+    }
 }

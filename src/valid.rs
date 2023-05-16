@@ -1,8 +1,14 @@
+use crate::gen::AllocGen;
 use crate::id::Id;
-use crate::{Entity, Static};
+use crate::{Entity, Static, Dynamic};
 use iter_context::ContextualIterator;
 use ref_cast::RefCast;
 use std::marker::PhantomData;
+
+pub trait Validator<'v, E: Entity<IdType = Dynamic>>:
+    AsRef<AllocGen<E>>
+{
+}
 
 pub trait ValidId: Copy {
     type Entity: Entity;

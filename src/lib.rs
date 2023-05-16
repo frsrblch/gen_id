@@ -5,6 +5,7 @@ pub mod component;
 pub mod entity;
 pub mod gen;
 mod id;
+mod map;
 pub mod relations;
 mod valid;
 
@@ -13,6 +14,7 @@ pub use component::Component;
 pub use entity::{Dynamic, Entity, Static};
 pub use id::{Id, IdRange};
 pub use iter_context::{ContextualIterator, FromContextualIterator};
+pub use map::IdMap;
 pub use valid::{Valid, ValidId};
 
 #[cfg(test)]

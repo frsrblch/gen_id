@@ -1,4 +1,5 @@
 use crate::gen::{AllocGen, Gen};
+use crate::valid::Validator;
 use crate::{Dynamic, Entity, Id, IdRange, Static, Valid};
 use nonmax::NonMaxU32;
 use ref_cast::RefCast;
@@ -238,6 +239,17 @@ impl<'slice, 'valid, E: Entity<IdType = Dynamic>> Iterator for SparseIdsIter<'sl
     }
 }
 
+impl<E: Entity<IdType = Dynamic>> AsRef<AllocGen<E>> for Allocator<E> {
+    fn as_ref(&self) -> &AllocGen<E> {
+        &self.gen
+    }
+}
+
+impl<'v, E: Entity<IdType = Dynamic>> Validator<'v, E> for &'v Allocator<E> {}
+
+unsafe impl<E: Entity> Send for Allocator<E> {}
+unsafe impl<E: Entity> Sync for Allocator<E> {}
+
 #[repr(transparent)]
 #[derive(Debug, RefCast)]
 pub struct CreateOnly<'valid, E: Entity> {
@@ -266,6 +278,17 @@ impl<'valid, E: Entity<IdType = Dynamic>> CreateOnly<'valid, E> {
         Ids::new(&self.alloc.entries)
     }
 }
+
+unsafe impl<'v, E: Entity> Send for CreateOnly<'v, E> {}
+unsafe impl<'v, E: Entity> Sync for CreateOnly<'v, E> {}
+
+impl<'v, E: Entity<IdType = Dynamic>> AsRef<AllocGen<E>> for CreateOnly<'v, E> {
+    fn as_ref(&self) -> &AllocGen<E> {
+        self.alloc.as_ref()
+    }
+}
+
+impl<'v, 'r, E: Entity<IdType = Dynamic>> Validator<'v, E> for &'r CreateOnly<'v, E> {}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 enum Entry {
@@ -307,8 +330,8 @@ pub struct KilledIds<'v, E: Entity> {
 
 impl<'v, E: Entity> KilledIds<'v, E> {
     #[inline]
-    pub fn ids(&self) -> &Valid<'v, Vec<Id<E>>> {
-        &self.ids
+    pub fn ids(&self) -> Valid<'v, &Vec<Id<E>>> {
+        Valid::new(&self.ids.value)
     }
 
     #[inline]
