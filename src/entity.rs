@@ -9,8 +9,8 @@ pub trait IdType {
     type AllocGen: std::fmt::Debug + Default + Clone + Eq;
 }
 
-/// Entity types with an IdType of Static can only be created,
-/// and do not need to be validated before indexing into a collection.
+/// Entity types with an IdType of Static cannot be killed,
+/// and static Ids do not need to be validated before indexing into a collection.
 pub struct Static;
 
 impl IdType for Static {
@@ -18,8 +18,8 @@ impl IdType for Static {
     type AllocGen = ();
 }
 
-/// Entity types with an IdType of Dynamic can be created and destroyed,
-/// and need to be validated before they can be used to index into collections.
+/// Entity types with an IdType of Dynamic can be created and killed,
+/// and dynamic Ids need to be validated before they can be used to index into collections.
 pub struct Dynamic;
 
 impl IdType for Dynamic {

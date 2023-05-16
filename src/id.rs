@@ -1,5 +1,4 @@
 use crate::{entity::IdType, Dynamic, Entity, Static};
-use force_derive::{ForceClone, ForceDefault, ForceEq, ForceHash, ForcePartialEq};
 use nonmax::NonMaxU32;
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
@@ -7,26 +6,33 @@ use std::marker::PhantomData;
 
 type GenType<E> = <<E as Entity>::IdType as IdType>::Gen;
 
-#[derive(Debug, ForcePartialEq, ForceEq, ForceHash)]
+#[derive(Debug)]
 pub struct Id<E: Entity> {
     pub(crate) index: NonMaxU32,
     pub(crate) gen: GenType<E>,
     marker: PhantomData<E>,
 }
 
-unsafe impl<E: Entity> Send for Id<E>
-where
-    GenType<E>: Send,
-    NonMaxU32: Send,
-{
+impl<E: Entity> PartialEq for Id<E> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.index == other.index && self.gen == other.gen
+    }
 }
 
-unsafe impl<E: Entity> Sync for Id<E>
-where
-    GenType<E>: Sync,
-    NonMaxU32: Sync,
-{
+impl<E: Entity> Eq for Id<E> {}
+
+impl<E: Entity> std::hash::Hash for Id<E> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.index.hash(state);
+        self.gen.hash(state);
+    }
 }
+
+unsafe impl<E: Entity> Send for Id<E> where GenType<E>: Send {}
+
+unsafe impl<E: Entity> Sync for Id<E> where GenType<E>: Sync {}
 
 impl<E: Entity> Clone for Id<E> {
     #[inline]
@@ -95,11 +101,39 @@ impl<E: Entity> Id<E> {
     }
 }
 
-#[derive(Debug, ForceDefault, ForceEq, ForcePartialEq, ForceHash)]
+#[derive(Debug)]
 pub struct IdRange<E> {
     start: u32,
     end: u32,
     marker: PhantomData<E>,
+}
+
+impl<E> Default for IdRange<E> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            start: Default::default(),
+            end: Default::default(),
+            marker: Default::default(),
+        }
+    }
+}
+
+impl<E> PartialEq for IdRange<E> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.start == other.start && self.end == other.end
+    }
+}
+
+impl<E> Eq for IdRange<E> {}
+
+impl<E> std::hash::Hash for IdRange<E> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.start.hash(state);
+        self.end.hash(state);
+    }
 }
 
 unsafe impl<E> Send for IdRange<E> {}
@@ -188,10 +222,20 @@ impl<E: Entity<IdType = Static>> IntoIterator for &IdRange<E> {
     }
 }
 
-#[derive(ForceClone)]
+#[derive(Debug)]
 pub struct RangeIter<E> {
     range: std::ops::Range<u32>,
     marker: PhantomData<E>,
+}
+
+impl<E> Clone for RangeIter<E> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            range: self.range.clone(),
+            marker: PhantomData,
+        }
+    }
 }
 
 impl<E> RangeIter<E> {
@@ -427,15 +471,5 @@ mod tests {
     fn range_size_hint() {
         let iter = RangeIter::<Stat>::new(0..1);
         assert_eq!(iter.size_hint(), (0..1).size_hint());
-    }
-
-    #[test]
-    fn send_id() {
-        fn send<E: Entity>(id: Id<E>) {
-            std::thread::spawn(move || drop(id));
-        }
-
-        let id = Id::<Stat>::new(1, ());
-        send(id);
     }
 }

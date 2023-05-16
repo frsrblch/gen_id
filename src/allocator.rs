@@ -1,6 +1,5 @@
 use crate::gen::{AllocGen, Gen};
 use crate::{Dynamic, Entity, Id, IdRange, Static, Valid};
-use force_derive::ForceDefault;
 use nonmax::NonMaxU32;
 use ref_cast::RefCast;
 use std::marker::PhantomData;
@@ -9,12 +8,24 @@ use std::marker::PhantomData;
 use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 /// Allocates indices for dynamic Ids.
-#[derive(Debug, ForceDefault)]
+#[derive(Debug)]
 pub struct Allocator<E: Entity> {
     entries: Vec<Entry>,
     next_dead: Option<NonMaxU32>,
     gen: AllocGen<E>,
     marker: PhantomData<E>,
+}
+
+impl<E: Entity> Default for Allocator<E> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            entries: Default::default(),
+            next_dead: Default::default(),
+            gen: Default::default(),
+            marker: Default::default(),
+        }
+    }
 }
 
 impl<E: Entity<IdType = Dynamic>> Allocator<E> {
@@ -312,10 +323,20 @@ impl<'v, E: Entity> KilledIds<'v, E> {
 }
 
 /// Allocates indices for static Ids.
-#[derive(Debug, ForceDefault)]
+#[derive(Debug)]
 pub struct RangeAllocator<E> {
     next: u32,
     marker: PhantomData<E>,
+}
+
+impl<E> Default for RangeAllocator<E> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            next: Default::default(),
+            marker: Default::default(),
+        }
+    }
 }
 
 impl<E: Entity<IdType = Static>> RangeAllocator<E> {

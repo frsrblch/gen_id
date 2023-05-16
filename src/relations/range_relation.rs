@@ -1,14 +1,35 @@
 use crate::component::RawComponent;
 use crate::{Entity, Id, IdRange, Static, ValidId};
-use force_derive::{ForceClone, ForceCopy, ForceDefault, ForceEq, ForcePartialEq};
 use iter_context::ContextualIterator;
 use std::ops::Index;
 
-#[derive(Debug, ForceCopy, ForceClone, ForceEq, ForcePartialEq)]
+#[derive(Debug)]
 pub enum RangeRelation<E: Entity> {
     ChildOf(Id<E>),
     ParentOf(IdRange<E>),
 }
+
+impl<E: Entity> Clone for RangeRelation<E> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<E: Entity> Copy for RangeRelation<E> {}
+
+impl<E: Entity> PartialEq for RangeRelation<E> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::ChildOf(l0), Self::ChildOf(r0)) => l0 == r0,
+            (Self::ParentOf(l0), Self::ParentOf(r0)) => l0 == r0,
+            _ => false,
+        }
+    }
+}
+
+impl<E: Entity> Eq for RangeRelation<E> {}
 
 unsafe impl<E: Entity> Send for RangeRelation<E> {}
 unsafe impl<E: Entity> Sync for RangeRelation<E> {}
@@ -41,9 +62,31 @@ impl<E: Entity> RangeRelation<E> {
     }
 }
 
-#[derive(Debug, ForceDefault, ForceClone)]
+#[derive(Debug)]
 pub struct RangeRelations<E: Entity> {
     values: RawComponent<E, RangeRelation<E>>,
+}
+
+impl<E: Entity> Default for RangeRelations<E> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            values: Default::default(),
+        }
+    }
+}
+
+impl<E: Entity> Clone for RangeRelations<E> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            values: self.values.clone(),
+        }
+    }
+    #[inline]
+    fn clone_from(&mut self, source: &Self) {
+        self.values.clone_from(&source.values);
+    }
 }
 
 /// Requires fixed because unlinking is not implemented

@@ -1,6 +1,5 @@
 use crate::id::Id;
 use crate::{entity::IdType, Dynamic, Entity};
-use force_derive::{ForceClone, ForceDefault, ForceEq, ForcePartialEq};
 use std::marker::PhantomData;
 use std::num::NonZeroU16;
 
@@ -28,11 +27,40 @@ impl Gen {
 /// and the allocator and collection agree on which IDs have been killed,
 /// and the logic of removing killed IDs from a collection is correct,
 /// then an entire collection of IDs can be known to be valid
-#[derive(Debug, ForceDefault, ForceClone, ForceEq, ForcePartialEq)]
+#[derive(Debug)]
 pub struct AllocGen<E: Entity> {
     value: <<E as Entity>::IdType as IdType>::AllocGen,
     marker: PhantomData<E>,
 }
+
+impl<E: Entity> Default for AllocGen<E> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            value: Default::default(),
+            marker: Default::default(),
+        }
+    }
+}
+
+impl<E: Entity> Clone for AllocGen<E> {
+    #[inline]
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<E: Entity> PartialEq for AllocGen<E> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl<E: Entity> Eq for AllocGen<E> {}
 
 impl<E: Entity<IdType = Dynamic>> AllocGen<E> {
     pub(crate) fn increment(&mut self, id: Id<E>) {
