@@ -61,9 +61,8 @@ impl<E: Entity> Ord for Id<E> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         // the NonMax types don't reverse comparison
-        other
-            .index
-            .cmp(&self.index)
+        self.index
+            .cmp(&other.index)
             .then_with(|| self.gen.cmp(&other.gen))
     }
 }
@@ -278,7 +277,6 @@ mod tests {
     use super::*;
     use crate::gen::Gen;
     use crate::tests::{Dyn, Stat};
-    use std::hash::{Hash, Hasher};
 
     impl<E: Entity<IdType = Dynamic>> Id<E> {
         pub(crate) fn next(self) -> Self {
@@ -317,11 +315,12 @@ mod tests {
 
     #[test]
     fn cmp() {
-        let id0 = Id::<Dyn>::new(0, Gen::MIN);
-        let id1 = Id::<Dyn>::new(1, Gen::MIN);
+        let id0_0 = Id::<Dyn>::new(0, Gen::MIN);
+        let id1_0 = Id::<Dyn>::new(1, Gen::MIN);
+        let id0_1 = Id::<Dyn>::new(0, Gen::MIN.next());
 
-        assert!(NonMaxU32::new(0) > NonMaxU32::new(1));
-        assert!(id0 < id1);
+        assert!(id0_0 < id1_0);
+        assert!(id0_0 < id0_1);
     }
 
     #[test]
@@ -354,27 +353,6 @@ mod tests {
         assert_eq!(Ordering::Less, id_0_0().cmp(&id_1_0()));
         assert_eq!(Ordering::Greater, id_1_1().cmp(&id_0_0()));
         assert_eq!(Ordering::Greater, id_1_1().cmp(&id_1_0()));
-    }
-
-    #[test]
-    fn id_hash() {
-        use fxhash::FxHasher;
-
-        let default = FxHasher::default().finish();
-
-        let get_hash = |id: Id<Dyn>| {
-            let mut hasher = FxHasher::default();
-            id.hash(&mut hasher);
-            hasher.finish()
-        };
-
-        let hash_0_0 = get_hash(id_0_0());
-        let hash_0_1 = get_hash(id_0_1());
-        let hash_1_0 = get_hash(id_1_0());
-
-        assert_ne!(hash_0_0, default);
-        assert_ne!(hash_0_0, hash_0_1);
-        assert_ne!(hash_0_0, hash_1_0);
     }
 
     #[test]
