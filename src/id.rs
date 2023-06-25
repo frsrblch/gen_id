@@ -156,6 +156,16 @@ impl<E: Entity<IdType = Static>> From<Id<E>> for IdRange<E> {
     }
 }
 
+impl<E: Entity<IdType = Static>> From<std::ops::RangeInclusive<Id<E>>> for IdRange<E> {
+    fn from(value: std::ops::RangeInclusive<Id<E>>) -> Self {
+        IdRange {
+            start: value.start().index.get(),
+            end: value.end().index.get() + 1,
+            marker: PhantomData,
+        }
+    }
+}
+
 impl<E: Entity<IdType = Static>> IdRange<E> {
     #[cfg(test)]
     pub fn new(start: u32, end: u32) -> Self {
@@ -449,5 +459,15 @@ mod tests {
     fn range_size_hint() {
         let iter = RangeIter::<Stat>::new(0..1);
         assert_eq!(iter.size_hint(), (0..1).size_hint());
+    }
+
+    #[test]
+    fn range_from_range_inclusive_ids() {
+        let id1 = Id::<Stat>::new(1, ());
+        let id2 = Id::<Stat>::new(2, ());
+        let range = IdRange::from(id1..=id2);
+        assert_eq!(range.len(), 2);
+        assert!(range.contains(id1));
+        assert!(range.contains(id2));
     }
 }
