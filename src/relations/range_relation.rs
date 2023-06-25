@@ -238,4 +238,12 @@ mod test {
         graph.link(id0, IdRange::default());
         graph.link(id1, IdRange::new(0, 1));
     }
+
+    #[test]
+    #[should_panic]
+    fn link_after_skipping_first_id() {
+        let mut graph = RangeRelations::<Stat>::default();
+
+        graph.link(Id::<Stat>::new(1, ()), Id::<Stat>::new(2, ()).into());
+    }
 }
