@@ -1,6 +1,7 @@
 use crate::gen::{AllocGen, Gen};
 use crate::valid::Validator;
 use crate::{Dynamic, Entity, Id, IdRange, Static, Valid};
+use iter_context::ContextualIterator;
 use nonmax::NonMaxU32;
 use ref_cast::RefCast;
 use std::marker::PhantomData;
@@ -388,6 +389,20 @@ impl<E: Entity<IdType = Static>> RangeAllocator<E> {
     pub fn par_ids(&self) -> impl ParallelIterator<Item = Id<E>> + IndexedParallelIterator {
         (0..self.next).into_par_iter().map(|i| Id::new(i, ()))
     }
+}
+
+impl<'a, E: Entity<IdType = Static>> IntoIterator for &'a RangeAllocator<E> {
+    type Item = Id<E>;
+
+    type IntoIter = crate::id::RangeIter<E>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.ids().into_iter()
+    }
+}
+
+impl<'a, E: Entity<IdType = Static>> ContextualIterator for &'a RangeAllocator<E> {
+    type Context = E;
 }
 
 #[cfg(test)]
