@@ -15,6 +15,7 @@ pub use entity::{Dynamic, Entity, Static};
 pub use id::{Id, IdRange};
 pub use iter_context::{ContextualIterator, FromContextualIterator};
 pub use map::IdMap;
+pub use relations::*;
 pub use valid::{Valid, ValidId};
 
 #[cfg(test)]
