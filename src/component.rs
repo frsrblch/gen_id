@@ -885,5 +885,13 @@ mod tests {
         assert_eq!(vec![1, 1, 4], comp.values.values);
     }
 
-    // TODO test std::ops::_Assign ops
+    #[test]
+    fn add_assign_component() {
+        let mut a = Component::<Stat, u32>::from(vec![0, 0, 0]);
+        let b = Component::<Stat, u32>::from(vec![1, 2, 3]);
+        let c = Component::<Stat, u32>::from(vec![2, 3, 5]);
+        let bc = b.iter().zip(&c).map(|(b, c)| b + c);
+        a += bc;
+        assert_eq!(a.values.values, vec![3, 5, 8]);
+    }
 }
