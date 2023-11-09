@@ -5,6 +5,7 @@ use std::marker::PhantomData;
 use std::ops::*;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RawComponent<E, T> {
     pub(crate) values: Vec<T>,
     marker: PhantomData<E>,
@@ -178,6 +179,7 @@ impl<'a, E, T: Sync> rayon::prelude::IntoParallelRefIterator<'a> for &'a RawComp
 
 #[repr(transparent)]
 #[derive(Debug, RefCast)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Component<E, T> {
     values: RawComponent<E, T>,
 }
