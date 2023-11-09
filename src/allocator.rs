@@ -1,8 +1,8 @@
 use crate::gen::{AllocGen, Gen};
+use crate::id::NonMaxU32;
 use crate::valid::Validator;
 use crate::{Dynamic, Entity, Id, IdRange, Static, Valid};
 use iter_context::ContextualIterator;
-use nonmax::NonMaxU32;
 use ref_cast::RefCast;
 use std::marker::PhantomData;
 
@@ -11,12 +11,16 @@ use rayon::prelude::{IndexedParallelIterator, IntoParallelIterator, ParallelIter
 
 /// Allocates indices for dynamic Ids.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Allocator<E: Entity> {
     entries: Vec<Entry>,
-    next_dead: Option<NonMaxU32>,
+    next_dead: Option<crate::id::NonMaxU32>,
     gen: AllocGen<E>,
     marker: PhantomData<E>,
 }
+
+#[cfg(feature = "bevy")]
+impl<E: Entity> bevy_ecs::prelude::Resource for Allocator<E> {}
 
 impl<E: Entity> Default for Allocator<E> {
     #[inline]
@@ -292,6 +296,7 @@ impl<'v, E: Entity<IdType = Dynamic>> AsRef<AllocGen<E>> for CreateOnly<'v, E> {
 impl<'v, 'r, E: Entity<IdType = Dynamic>> Validator<'v, E> for &'r CreateOnly<'v, E> {}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 enum Entry {
     // Does not contain an Id so that the size is 8 instead of 12
     Alive {
@@ -348,9 +353,16 @@ impl<'v, E: Entity> KilledIds<'v, E> {
 
 /// Allocates indices for static Ids.
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RangeAllocator<E> {
     next: u32,
     marker: PhantomData<E>,
+}
+
+#[cfg(feature = "bevy")]
+impl<E> bevy_ecs::prelude::Resource for RangeAllocator<E> where
+    E: std::marker::Send + std::marker::Sync + 'static
+{
 }
 
 impl<E> Default for RangeAllocator<E> {

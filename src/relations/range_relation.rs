@@ -4,6 +4,7 @@ use iter_context::ContextualIterator;
 use std::ops::Index;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum RangeRelation<E: Entity> {
     ChildOf(Id<E>),
     ParentOf(IdRange<E>),

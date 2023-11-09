@@ -3,10 +3,33 @@ pub trait Entity: std::fmt::Debug + 'static {
     type IdType: IdType;
 }
 
+#[cfg(feature = "serde")]
+/// Defines the associated types for `Id<E>` and collections with an [`crate::gen::AllocGen<E>`] checksum value
+pub trait IdType {
+    type Gen: std::fmt::Debug
+        + Copy
+        + Eq
+        + std::hash::Hash
+        + Ord
+        + Send
+        + Sync
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>;
+    type AllocGen: std::fmt::Debug
+        + Default
+        + Clone
+        + Eq
+        + serde::Serialize
+        + for<'de> serde::Deserialize<'de>
+        + Send
+        + Sync
+        + 'static;
+}
+#[cfg(not(feature = "serde"))]
 /// Defines the associated types for `Id<E>` and collections with an [`crate::gen::AllocGen<E>`] checksum value
 pub trait IdType {
     type Gen: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord + Send + Sync;
-    type AllocGen: std::fmt::Debug + Default + Clone + Eq;
+    type AllocGen: std::fmt::Debug + Default + Clone + Eq + Send + Sync + 'static;
 }
 
 /// Entity types with an IdType of Static cannot be killed,
@@ -15,7 +38,7 @@ pub struct Static;
 
 impl IdType for Static {
     type Gen = ();
-    type AllocGen = ();    
+    type AllocGen = ();
 }
 
 /// Entity types with an IdType of Dynamic can be created and killed,

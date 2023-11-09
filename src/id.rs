@@ -1,5 +1,4 @@
 use crate::{entity::IdType, Dynamic, Entity, Static};
-use nonmax::NonMaxU32;
 use std::cmp::Ordering;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
@@ -7,11 +6,15 @@ use std::marker::PhantomData;
 type GenType<E> = <<E as Entity>::IdType as IdType>::Gen;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Id<E: Entity> {
     pub(crate) index: NonMaxU32,
     pub(crate) gen: GenType<E>,
     marker: PhantomData<E>,
 }
+
+#[cfg(feature = "bevy")]
+impl<E: Entity> bevy_ecs::prelude::Resource for Id<E> {}
 
 impl<E: Entity> PartialEq for Id<E> {
     #[inline]
@@ -100,12 +103,42 @@ impl<E: Entity> Id<E> {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub(crate) struct NonMaxU32(std::num::NonZeroU32);
+
+impl NonMaxU32 {
+    pub fn get(&self) -> u32 {
+        !self.0.get()
+    }
+
+    pub fn new(value: u32) -> Option<Self> {
+        std::num::NonZeroU32::new(!value).map(Self)
+    }
+}
+
+impl PartialOrd for NonMaxU32 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        other.0.partial_cmp(&self.0)
+    }
+}
+
+impl Ord for NonMaxU32 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.0.cmp(&self.0)
+    }
+}
+
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IdRange<E> {
     start: u32,
     end: u32,
     marker: PhantomData<E>,
 }
+
+#[cfg(feature = "bevy")]
+impl<E: Entity> bevy_ecs::prelude::Resource for IdRange<E> {}
 
 impl<E> Default for IdRange<E> {
     #[inline]
@@ -469,5 +502,25 @@ mod tests {
         assert_eq!(range.len(), 2);
         assert!(range.contains(id1));
         assert!(range.contains(id2));
+    }
+
+    #[test]
+    fn non_max_given_max() {
+        assert!(NonMaxU32::new(u32::MAX).is_none());
+    }
+
+    #[test]
+    fn non_max_size() {
+        assert_eq!(4, std::mem::size_of::<NonMaxU32>());
+        assert_eq!(4, std::mem::size_of::<Option<NonMaxU32>>());
+    }
+
+    #[test]
+    fn non_max_ordering() {
+        let zero = NonMaxU32::new(0).unwrap();
+        let one = NonMaxU32::new(1).unwrap();
+        assert!(zero < one);
+        assert_eq!(0, zero.get());
+        assert_eq!(1, one.get());
     }
 }

@@ -6,6 +6,7 @@ use std::num::NonZeroU16;
 /// Tracks the generation of dynamic entity Ids,
 /// allowing Ids that share the same index to be differentiated.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gen(NonZeroU16);
 
 impl Gen {
@@ -28,6 +29,7 @@ impl Gen {
 /// and the logic of removing killed IDs from a collection is correct,
 /// then an entire collection of IDs can be known to be valid
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AllocGen<E: Entity> {
     value: <<E as Entity>::IdType as IdType>::AllocGen,
     marker: PhantomData<E>,

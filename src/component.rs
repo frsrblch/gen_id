@@ -182,6 +182,14 @@ pub struct Component<E, T> {
     values: RawComponent<E, T>,
 }
 
+#[cfg(feature = "bevy")]
+impl<E, T> bevy_ecs::prelude::Resource for Component<E, T>
+where
+    E: Send + Sync + 'static,
+    T: Send + Sync + 'static,
+{
+}
+
 impl<E, T: PartialEq> PartialEq for Component<E, T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {

@@ -1,11 +1,11 @@
-use ref_cast::RefCast;
-
 use crate::allocator::KilledIds;
 use crate::gen::AllocGen;
 use crate::valid::Validator;
 use crate::{Dynamic, Entity, Id, Valid, ValidId};
+use ref_cast::RefCast;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RawIdMap<E: Entity, T> {
     map: fxhash::FxHashMap<Id<E>, T>,
     gen: AllocGen<E>,
@@ -118,8 +118,17 @@ impl<E: Entity, T> std::ops::Index<&Id<E>> for RawIdMap<E, T> {
 
 #[repr(transparent)]
 #[derive(Debug, RefCast)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct IdMap<E: Entity, T> {
     map: RawIdMap<E, T>,
+}
+
+#[cfg(feature = "bevy")]
+impl<E, T> bevy_ecs::prelude::Resource for IdMap<E, T>
+where
+    E: Entity + Send + Sync + 'static,
+    T: Send + Sync + 'static,
+{
 }
 
 impl<E: Entity, T> Default for IdMap<E, T> {
