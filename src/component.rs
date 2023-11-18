@@ -41,6 +41,14 @@ impl<E, T: PartialEq> PartialEq for RawComponent<E, T> {
 impl<E, T: Eq> Eq for RawComponent<E, T> {}
 
 impl<E: Entity, T> RawComponent<E, T> {
+    #[inline]
+    pub const fn new() -> Self {
+        RawComponent {
+            values: vec![],
+            marker: PhantomData,
+        }
+    }
+
     #[track_caller]
     #[inline]
     pub fn insert(&mut self, id: Id<E>, value: T) {
@@ -219,7 +227,26 @@ impl<E, T: Clone> Clone for Component<E, T> {
     }
 }
 
+impl<E> Component<E, E>
+where
+    E: Entity<IdType = Static>,
+{
+    pub fn create(&mut self, value: E) -> Id<E> {
+        let index = self.values.len();
+        let id = Id::new(index as u32, ());
+        self.insert(id, value);
+        id
+    }
+}
+
 impl<E: Entity, T> Component<E, T> {
+    #[inline]
+    pub const fn new() -> Self {
+        Component {
+            values: RawComponent::new(),
+        }
+    }
+
     #[inline]
     pub fn insert<V: ValidId<Entity = E>>(&mut self, id: V, value: T) {
         self.values.insert(id.id(), value);
