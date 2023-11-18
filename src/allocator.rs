@@ -34,6 +34,14 @@ impl<E: Entity> Default for Allocator<E> {
     }
 }
 
+impl<E: Entity> PartialEq for Allocator<E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.entries.eq(&other.entries)
+            && self.next_dead.eq(&other.next_dead)
+            && self.gen.eq(&other.gen)
+    }
+}
+
 impl<E: Entity<IdType = Dynamic>> Allocator<E> {
     #[inline]
     pub fn create(&mut self) -> Valid<Id<E>> {
@@ -132,7 +140,7 @@ impl<E: Entity<IdType = Dynamic>> Allocator<E> {
     #[inline]
     pub fn is_alive(&self, id: Id<E>) -> bool {
         if let Some(Entry::Alive { gen, .. }) = self.entries.get(id.index()) {
-            id.gen.eq(gen)
+            id.gen.eq(&gen)
         } else {
             false
         }
@@ -371,6 +379,21 @@ impl<E> Default for RangeAllocator<E> {
         Self {
             next: Default::default(),
             marker: Default::default(),
+        }
+    }
+}
+impl<E> PartialEq for RangeAllocator<E> {
+    fn eq(&self, other: &Self) -> bool {
+        self.next.eq(&other.next)
+    }
+}
+
+impl<E> RangeAllocator<E> {
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            next: 0,
+            marker: PhantomData,
         }
     }
 }
