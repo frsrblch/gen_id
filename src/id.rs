@@ -119,7 +119,7 @@ impl NonMaxU32 {
 
 impl PartialOrd for NonMaxU32 {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.0.partial_cmp(&self.0)
+        Some(other.0.cmp(&self.0))
     }
 }
 

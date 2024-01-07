@@ -140,7 +140,7 @@ impl<E: Entity<IdType = Dynamic>> Allocator<E> {
     #[inline]
     pub fn is_alive(&self, id: Id<E>) -> bool {
         if let Some(Entry::Alive { gen, .. }) = self.entries.get(id.index()) {
-            id.gen.eq(&gen)
+            id.gen.eq(gen)
         } else {
             false
         }
