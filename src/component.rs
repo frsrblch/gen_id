@@ -188,7 +188,7 @@ impl<'a, E, T: Sync> rayon::prelude::IntoParallelRefIterator<'a> for &'a RawComp
 #[repr(transparent)]
 #[derive(Debug, RefCast)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Component<E, T> {
+pub struct Component<E, T = E> {
     values: RawComponent<E, T>,
 }
 
@@ -231,6 +231,7 @@ impl<E> Component<E, E>
 where
     E: Entity<IdType = Static>,
 {
+    /// Components that store their entity may function like an arena if that entity is `Static`
     pub fn create(&mut self, value: E) -> Id<E> {
         let index = self.values.len();
         let id = Id::new(index as u32, ());
