@@ -13,9 +13,6 @@ pub struct Id<E: Entity> {
     marker: PhantomData<E>,
 }
 
-#[cfg(feature = "bevy")]
-impl<E: Entity> bevy_ecs::prelude::Resource for Id<E> {}
-
 impl<E: Entity> PartialEq for Id<E> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
@@ -136,9 +133,6 @@ pub struct IdRange<E> {
     end: u32,
     marker: PhantomData<E>,
 }
-
-#[cfg(feature = "bevy")]
-impl<E: Entity> bevy_ecs::prelude::Resource for IdRange<E> {}
 
 impl<E> Default for IdRange<E> {
     #[inline]

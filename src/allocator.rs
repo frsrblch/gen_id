@@ -19,9 +19,6 @@ pub struct Allocator<E: Entity> {
     marker: PhantomData<E>,
 }
 
-#[cfg(feature = "bevy")]
-impl<E: Entity> bevy_ecs::prelude::Resource for Allocator<E> {}
-
 impl<E: Entity> Default for Allocator<E> {
     #[inline]
     fn default() -> Self {
@@ -365,12 +362,6 @@ impl<'v, E: Entity> KilledIds<'v, E> {
 pub struct RangeAllocator<E> {
     next: u32,
     marker: PhantomData<E>,
-}
-
-#[cfg(feature = "bevy")]
-impl<E> bevy_ecs::prelude::Resource for RangeAllocator<E> where
-    E: std::marker::Send + std::marker::Sync + 'static
-{
 }
 
 impl<E> Default for RangeAllocator<E> {

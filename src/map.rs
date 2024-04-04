@@ -123,14 +123,6 @@ pub struct IdMap<E: Entity, T> {
     map: RawIdMap<E, T>,
 }
 
-#[cfg(feature = "bevy")]
-impl<E, T> bevy_ecs::prelude::Resource for IdMap<E, T>
-where
-    E: Entity + Send + Sync + 'static,
-    T: Send + Sync + 'static,
-{
-}
-
 impl<E: Entity, T> Default for IdMap<E, T> {
     #[inline]
     fn default() -> Self {
