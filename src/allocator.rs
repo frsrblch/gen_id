@@ -412,7 +412,7 @@ impl<E: Entity<IdType = Static>> RangeAllocator<E> {
 
     #[cfg(feature = "rayon")]
     #[inline]
-    pub fn par_ids(&self) -> impl ParallelIterator<Item = Id<E>> + IndexedParallelIterator {
+    pub fn par_ids(&self) -> impl IndexedParallelIterator<Item = Id<E>> {
         (0..self.next).into_par_iter().map(|i| Id::new(i, ()))
     }
 }
