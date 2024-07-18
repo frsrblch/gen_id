@@ -24,12 +24,14 @@ pub trait IdType {
         + Send
         + Sync
         + 'static;
+    type Alloc<E: Entity>;
 }
 #[cfg(not(feature = "serde"))]
 /// Defines the associated types for `Id<E>` and collections with an [`crate::gen::AllocGen<E>`] checksum value
 pub trait IdType {
     type Gen: std::fmt::Debug + Copy + Eq + std::hash::Hash + Ord + Send + Sync;
     type AllocGen: std::fmt::Debug + Default + Clone + Eq + Send + Sync + 'static;
+    type Alloc<E: Entity>;
 }
 
 /// Entity types with an IdType of Static cannot be killed,
@@ -39,6 +41,7 @@ pub struct Static;
 impl IdType for Static {
     type Gen = ();
     type AllocGen = ();
+    type Alloc<E: Entity> = crate::RangeAllocator<E>;
 }
 
 /// Entity types with an IdType of Dynamic can be created and killed,
@@ -48,4 +51,5 @@ pub struct Dynamic;
 impl IdType for Dynamic {
     type Gen = crate::gen::Gen;
     type AllocGen = u32;
+    type Alloc<E: Entity> = crate::Allocator<E>;
 }
