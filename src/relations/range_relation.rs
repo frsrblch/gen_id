@@ -142,7 +142,7 @@ impl<'a, E: Entity> IntoIterator for &'a RangeRelations<E> {
     }
 }
 
-impl<'a, E: Entity> ContextualIterator for &'a RangeRelations<E> {
+impl<E: Entity> ContextualIterator for &RangeRelations<E> {
     type Context = E;
 }
 

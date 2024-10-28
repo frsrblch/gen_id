@@ -163,7 +163,7 @@ pub struct Ids<'slice, 'valid, E> {
     entity: PhantomData<E>,
 }
 
-impl<'slice, 'valid, E> Ids<'slice, 'valid, E> {
+impl<'slice, E> Ids<'slice, '_, E> {
     #[allow(clippy::ptr_arg)] // We want the whole vec
     fn new(entries: &'slice Vec<Entry>) -> Self {
         Self {
@@ -174,7 +174,7 @@ impl<'slice, 'valid, E> Ids<'slice, 'valid, E> {
     }
 }
 
-impl<'slice, 'valid, E: Entity<IdType = Dynamic>> Iterator for Ids<'slice, 'valid, E> {
+impl<'valid, E: Entity<IdType = Dynamic>> Iterator for Ids<'_, 'valid, E> {
     type Item = Valid<'valid, Id<E>>;
 
     #[inline]
@@ -195,7 +195,7 @@ pub struct SparseIds<'slice, 'valid, E> {
     entity: PhantomData<E>,
 }
 
-impl<'slice, 'valid, E> SparseIds<'slice, 'valid, E> {
+impl<'slice, E> SparseIds<'slice, '_, E> {
     #[allow(clippy::ptr_arg)] // We want the whole vec
     fn new(entries: &'slice Vec<Entry>) -> Self {
         Self {
@@ -216,8 +216,8 @@ impl<'slice, 'valid, E: Entity<IdType = Dynamic>> IntoIterator for SparseIds<'sl
     }
 }
 
-impl<'slice, 'valid, E: Entity<IdType = Dynamic>> iter_context::ContextualIterator
-    for SparseIds<'slice, 'valid, E>
+impl<E: Entity<IdType = Dynamic>> iter_context::ContextualIterator
+    for SparseIds<'_, '_, E>
 {
     type Context = E;
 }
@@ -229,7 +229,7 @@ pub struct SparseIdsIter<'slice, 'valid, E> {
     entity: PhantomData<E>,
 }
 
-impl<'slice, 'valid, E> SparseIdsIter<'slice, 'valid, E> {
+impl<'slice, E> SparseIdsIter<'slice, '_, E> {
     #[allow(clippy::ptr_arg)] // We want the whole vec
     fn new(iter: std::slice::Iter<'slice, Entry>) -> Self {
         Self {
@@ -240,7 +240,7 @@ impl<'slice, 'valid, E> SparseIdsIter<'slice, 'valid, E> {
     }
 }
 
-impl<'slice, 'valid, E: Entity<IdType = Dynamic>> Iterator for SparseIdsIter<'slice, 'valid, E> {
+impl<'valid, E: Entity<IdType = Dynamic>> Iterator for SparseIdsIter<'_, 'valid, E> {
     type Item = Option<Valid<'valid, Id<E>>>;
 
     #[inline]
@@ -289,16 +289,16 @@ impl<'valid, E: Entity<IdType = Dynamic>> CreateOnly<'valid, E> {
     }
 }
 
-unsafe impl<'v, E: Entity> Send for CreateOnly<'v, E> {}
-unsafe impl<'v, E: Entity> Sync for CreateOnly<'v, E> {}
+unsafe impl<E: Entity> Send for CreateOnly<'_, E> {}
+unsafe impl<E: Entity> Sync for CreateOnly<'_, E> {}
 
-impl<'v, E: Entity<IdType = Dynamic>> AsRef<AllocGen<E>> for CreateOnly<'v, E> {
+impl<E: Entity<IdType = Dynamic>> AsRef<AllocGen<E>> for CreateOnly<'_, E> {
     fn as_ref(&self) -> &AllocGen<E> {
         self.alloc.as_ref()
     }
 }
 
-impl<'v, 'r, E: Entity<IdType = Dynamic>> Validator<'v, E> for &'r CreateOnly<'v, E> {}
+impl<'v, E: Entity<IdType = Dynamic>> Validator<'v, E> for &CreateOnly<'v, E> {}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -417,7 +417,7 @@ impl<E: Entity<IdType = Static>> RangeAllocator<E> {
     }
 }
 
-impl<'a, E: Entity<IdType = Static>> IntoIterator for &'a RangeAllocator<E> {
+impl<E: Entity<IdType = Static>> IntoIterator for &RangeAllocator<E> {
     type Item = Id<E>;
 
     type IntoIter = crate::id::RangeIter<E>;
@@ -427,7 +427,7 @@ impl<'a, E: Entity<IdType = Static>> IntoIterator for &'a RangeAllocator<E> {
     }
 }
 
-impl<'a, E: Entity<IdType = Static>> ContextualIterator for &'a RangeAllocator<E> {
+impl<E: Entity<IdType = Static>> ContextualIterator for &RangeAllocator<E> {
     type Context = E;
 }
 

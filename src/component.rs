@@ -157,11 +157,11 @@ impl<E, T> ContextualIterator for RawComponent<E, T> {
     type Context = E;
 }
 
-impl<'a, E, T> ContextualIterator for &'a RawComponent<E, T> {
+impl<E, T> ContextualIterator for &RawComponent<E, T> {
     type Context = E;
 }
 
-impl<'a, E, T> ContextualIterator for &'a mut RawComponent<E, T> {
+impl<E, T> ContextualIterator for &mut RawComponent<E, T> {
     type Context = E;
 }
 
@@ -236,7 +236,7 @@ where
     }
 
     pub fn iter_with_ids(&self) -> impl Iterator<Item = (Id<E>, &E)> + '_ {
-        self.ids().into_iter().zip(self.into_iter())
+        self.ids().into_iter().zip(self)
     }
 }
 
@@ -350,11 +350,11 @@ impl<E, T> ContextualIterator for Component<E, T> {
     type Context = E;
 }
 
-impl<'a, E, T> ContextualIterator for &'a Component<E, T> {
+impl<E, T> ContextualIterator for &Component<E, T> {
     type Context = E;
 }
 
-impl<'a, E, T> ContextualIterator for &'a mut Component<E, T> {
+impl<E, T> ContextualIterator for &mut Component<E, T> {
     type Context = E;
 }
 

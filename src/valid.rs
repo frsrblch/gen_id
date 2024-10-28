@@ -70,7 +70,7 @@ impl<E: Entity<IdType = Static>> ValidId for &Id<E> {
     }
 }
 
-impl<'v, E: Entity> ValidId for Valid<'v, Id<E>> {
+impl<E: Entity> ValidId for Valid<'_, Id<E>> {
     type Entity = E;
     #[inline]
     fn id(self) -> Id<E> {
@@ -78,7 +78,7 @@ impl<'v, E: Entity> ValidId for Valid<'v, Id<E>> {
     }
 }
 
-impl<'v, E: Entity> ValidId for &Valid<'v, Id<E>> {
+impl<E: Entity> ValidId for &Valid<'_, Id<E>> {
     type Entity = E;
     #[inline]
     fn id(self) -> Id<E> {
@@ -86,7 +86,7 @@ impl<'v, E: Entity> ValidId for &Valid<'v, Id<E>> {
     }
 }
 
-impl<'v, E: Entity> ValidId for Valid<'v, &Id<E>> {
+impl<E: Entity> ValidId for Valid<'_, &Id<E>> {
     type Entity = E;
     #[inline]
     fn id(self) -> Id<E> {
@@ -94,7 +94,7 @@ impl<'v, E: Entity> ValidId for Valid<'v, &Id<E>> {
     }
 }
 
-impl<'v, E: Entity> ValidId for &Valid<'v, &Id<E>> {
+impl<E: Entity> ValidId for &Valid<'_, &Id<E>> {
     type Entity = E;
     #[inline]
     fn id(self) -> Id<E> {
@@ -115,7 +115,7 @@ impl<'v, I: IntoIterator> IntoIterator for Valid<'v, I> {
     }
 }
 
-impl<'v, T: ContextualIterator> ContextualIterator for Valid<'v, T> {
+impl<T: ContextualIterator> ContextualIterator for Valid<'_, T> {
     type Context = T::Context;
 }
 
