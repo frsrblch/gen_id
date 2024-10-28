@@ -212,6 +212,16 @@ impl<E: Entity<IdType = Static>> IdRange<E> {
         }
     }
 
+    #[track_caller]
+    pub fn extend(&mut self, range: Self) {
+        if range.is_empty() {
+            return;
+        }
+
+        assert!(self.end == range.start);
+        self.end = range.end;
+    }
+
     #[inline]
     pub fn contains(&self, id: Id<E>) -> bool {
         self.range().contains(&id.index.get())
@@ -516,5 +526,36 @@ mod tests {
         assert!(zero < one);
         assert_eq!(0, zero.get());
         assert_eq!(1, one.get());
+    }
+
+    #[test]
+    fn range_extend_given_empty() {
+        let mut range = IdRange::<Stat>::new(2, 3);
+        let expected = range;
+        let empty = IdRange::<Stat>::default();
+
+        range.extend(empty);
+
+        assert_eq!(expected, range);
+    }
+
+    #[test]
+    fn range_extend_given_contiguous() {
+        let mut range = IdRange::<Stat>::new(2, 3);
+        let expected = IdRange::<Stat>::new(2, 5);
+        let next = IdRange::<Stat>::new(3, 5);
+
+        range.extend(next);
+
+        assert_eq!(expected, range);
+    }
+
+    #[test]
+    #[should_panic]
+    fn range_extend_given_nopn_contiguous_panics() {
+        let mut range = IdRange::<Stat>::new(2, 3);
+        let next = IdRange::<Stat>::new(4, 5);
+
+        range.extend(next);
     }
 }
