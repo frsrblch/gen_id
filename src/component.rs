@@ -234,6 +234,10 @@ where
     pub fn ids(&self) -> IdRange<E> {
         IdRange::new(0, self.len() as u32)
     }
+
+    pub fn iter_with_ids(&self) -> impl Iterator<Item = (Id<E>, &E)> + '_ {
+        self.ids().into_iter().zip(self.into_iter())
+    }
 }
 
 impl<E: Entity, T> Component<E, T> {
